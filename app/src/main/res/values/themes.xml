@@ -1,0 +1,11 @@
+<resources>
+    <!--
+      Pre-Compose window theme only — the real theming is BatonTheme (Material 3,
+      Compose). We parent a framework DayNight theme (no AppCompat/MDC dependency)
+      and strip the action bar; Compose draws everything after launch.
+    -->
+    <style name="Theme.Baton" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

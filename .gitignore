@@ -1,34 +1,67 @@
-# Gradle files
+# ─────────────────────────────────────────────────────────────────────────
+# Android / Gradle build output
+# ─────────────────────────────────────────────────────────────────────────
 .gradle/
 build/
-
-# Local configuration file (sdk path, etc)
-local.properties
-
-# Log/OS Files
-*.log
-
-# Android Studio generated files and folders
 captures/
 .externalNativeBuild/
 .cxx/
-*.aab
 *.apk
+*.aab
+*.ap_
+*.dex
 output-metadata.json
 
-# IntelliJ
+# Machine-local SDK/NDK path + any per-machine Gradle config — never committed.
+local.properties
+
+# Kotlin 2.x incremental-compile cache
+.kotlin/
+
+# ─────────────────────────────────────────────────────────────────────────
+# IDE — Android Studio / IntelliJ
+# ─────────────────────────────────────────────────────────────────────────
 *.iml
 .idea/
-misc.xml
-deploymentTargetDropDown.xml
-render.experimental.xml
+# Everything under .idea/ is per-user/per-machine project state. If you later
+# want to share something specific (run configs, code style), un-ignore just
+# that file, e.g.  !.idea/codeStyles/
 
-# Keystore files
+# ─────────────────────────────────────────────────────────────────────────
+# Secrets & signing — keystores and anything that signs or authenticates.
+# These must NEVER reach the repo; CI injects them from encrypted secrets.
+# ─────────────────────────────────────────────────────────────────────────
 *.jks
 *.keystore
-
-# Google Services (e.g. APIs or Firebase)
+*.p12
+keystore.properties
+signing.properties
 google-services.json
+.env
+.env.*
+!.env.example
 
-# Android Profiling
+# ─────────────────────────────────────────────────────────────────────────
+# Logs / profiling / OS cruft
+# ─────────────────────────────────────────────────────────────────────────
+*.log
 *.hprof
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ─────────────────────────────────────────────────────────────────────────
+# Agent / AI tooling — agent-only, never published to GitHub. Mirrors the
+# `music` repo convention: the README is for humans; anything agent-facing
+# stays local. (Delete the CLAUDE.md lines if you'd rather version the
+# project-memory file so it's shared/committed instead.)
+# ─────────────────────────────────────────────────────────────────────────
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.aider*
+.cursor/
+.continue/
+.copilot/
+.windsurf/
+.codeium/

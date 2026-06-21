@@ -1,0 +1,17 @@
+# Overrides layered on top of detekt's bundled defaults
+# (buildUponDefaultConfig = true). Keep this lean — only deviations live here.
+style:
+  # Numeric literals are common and readable in UI / time / audio code.
+  MagicNumber:
+    active: false
+  # Early returns read fine in reconcile/guard-heavy code.
+  ReturnCount:
+    active: false
+  # Compose @Composable functions are PascalCase by convention.
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+
+complexity:
+  LongParameterList:
+    # Compose UI functions legitimately take many parameters (state + lambdas).
+    ignoreAnnotated: ['Composable']
