@@ -41,6 +41,7 @@ kotlin {
 dependencies {
     implementation(project(":core-network"))
 
+    implementation(libs.androidx.core.ktx)
     implementation(libs.okhttp)
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)

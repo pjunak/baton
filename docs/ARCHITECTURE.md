@@ -10,6 +10,23 @@ and stored on-device — nothing about a specific instance is compiled in.
 
 ---
 
+## 0. Implementation status
+
+This is a **design document** — it describes the intended whole. What is actually built today:
+
+| Area | Status |
+|---|---|
+| `core-model`, `core-network`, `core-sync` | ✅ Built (unit tests for serialization + URL handling) |
+| Setup wizard, bottom-nav shell, Console, Library, Settings | ✅ Built |
+| Console transport / volume / seek / queue / shuffle / repeat | ✅ Built |
+| `feature-playback` (speaker), `feature-update` (updater) | ⏳ Empty skeletons |
+| Session + Devices surfaces | ⏳ Placeholders |
+| Spotless/detekt, Compose UI tests, CI + signed release | ⏳ Deferred (see §3, §12) |
+
+Sections below marked "(planned)" are not yet implemented.
+
+---
+
 ## 1. Relationship to the `music` backend
 
 Baton is a pure client of the `music` HTTP + WebSocket API. The contract lives in that repo:
@@ -66,14 +83,14 @@ This mirrors the backend's own "server-as-reducer" design almost 1:1.
 | JSON | kotlinx.serialization (sealed `Action` hierarchy ↔ `type`-discriminated union) |
 | Playback | Media3 / ExoPlayer in a `MediaSessionService`; SoundPool for one-shot SFX |
 | Images | Coil 3 (uses the shared OkHttp client) |
-| Storage | DataStore (settings) + Android Keystore-encrypted session token; Room only if/when offline caching is added |
+| Storage | SharedPreferences (`NetworkStore`) + Android Keystore-encrypted session/cookie (`SecureStore`). DataStore was deferred — the cookie jar needs synchronous reads. Room only if/when offline caching is added |
 | Navigation | Navigation Compose (type-safe routes) |
 | Updater | GitHub Releases API + OkHttp download + `PackageInstaller` |
-| Build | Gradle Kotlin DSL + version catalog (`libs.versions.toml`) |
+| Build | Gradle Kotlin DSL + version catalog. AGP 9.2.1 / Gradle 9.4 / Kotlin 2.2.10 / Hilt 2.57.2; `newDsl=false` (Hilt × AGP-9 constraint — see [DECISIONS](DECISIONS.md) ADR-0007) |
 | CI | GitHub Actions (`ci.yml` + `release.yml`) |
-| Quality | Spotless (ktlint) + detekt; JUnit + Turbine + MockWebServer; Compose UI test |
+| Quality | JUnit + Turbine unit tests (built). Spotless/detekt + Compose UI tests **deferred** past the AGP 9 upgrade (see §12) |
 | SDK | minSdk 33 (Android 13); compile/target 35 (Android 15) — 36-ready once AGP supports it |
-| appId | `eu.junak.baton` *(proposed)* |
+| appId | `eu.junak.baton` (debug builds use a `.debug` suffix) |
 
 ---
 
@@ -136,7 +153,7 @@ piece of plumbing that makes auth "just work" everywhere — get it right once.
 
 1. Connect to `<wss-base>/api/ws` with the shared (authenticated) client.
 2. Receive `state_snapshot` → seed state.
-3. Send `register` with a **stable, persisted `client_id`** (UUID minted once, stored in DataStore)
+3. Send `register` with a **stable, persisted `client_id`** (UUID minted once, stored via `NetworkStore`)
    and a device name, so the phone appears in the operator's device list and its output designation
    sticks across reconnects.
 4. Apply every `state_changed`. Handle `sfx_fired` (speaker role) and `error` (surface as a toast).
@@ -183,14 +200,14 @@ device is "on" (in `active_output_device_ids`, or a local override the user cont
 ## 9. Screens
 
 1. **Setup** — server URL → credentials (§5).
-2. **Console (home)** — now-playing, transport, seek, master volume, loop/shuffle, live queue,
-   "playing from" source.
+2. **Console (home)** — now-playing, transport, seek, master volume, loop/shuffle, live queue.
+   (Cover art + a "playing from" source label are planned — see [DESIGN-NOTES](DESIGN-NOTES.md).)
 3. **Library** — browse tree/folders + search; play/enqueue track, play folder/playlist. Read-only.
 4. **Session** — active mode picker, cues, soundboards (fire/loop SFX), EQ presets, interrupts.
 5. **Devices** — connected outputs, toggle active, per-device trim, toggle *this phone* as a speaker
    (local on/off + local volume).
-6. **Settings** — server (change/forget), account & active sessions, this-device name, speaker prefs,
-   check-for-updates, **Open web app**.
+6. **Settings** — account + **sign-out**, server URL + **Open web app**, app version (built).
+   Change-server, active sessions, this-device name, speaker prefs, and check-for-updates are planned.
 
 ---
 

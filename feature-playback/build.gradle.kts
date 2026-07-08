@@ -36,6 +36,7 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
 
+    implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.hilt.android)

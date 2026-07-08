@@ -6,13 +6,14 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.model.LoopMode
+import eu.junak.baton.core.model.PlayerState
 import eu.junak.baton.core.model.ShuffleMode
 import eu.junak.baton.core.model.Track
-import eu.junak.baton.core.network.ServerConfig
+import eu.junak.baton.core.network.MediaUrls
 import eu.junak.baton.core.network.api.LibraryApi
-import eu.junak.baton.core.network.auth.AuthRepository
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
+import eu.junak.baton.feature.playback.PlaybackController
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,8 +41,8 @@ import javax.inject.Inject
 class ConsoleViewModel @Inject constructor(
     private val syncClient: SyncClient,
     private val libraryApi: LibraryApi,
-    private val authRepository: AuthRepository,
-    private val serverConfig: ServerConfig,
+    private val mediaUrls: MediaUrls,
+    private val playbackController: PlaybackController,
 ) : ViewModel() {
 
     /** One queue slot: the server's track id plus its resolved metadata (null if unknown/deleted). */
@@ -49,9 +50,11 @@ class ConsoleViewModel @Inject constructor(
 
     data class UiState(
         val status: ConnectionStatus = ConnectionStatus.DISCONNECTED,
+        val connected: Boolean = false,
+        val playingHere: Boolean = false,
         val isPlaying: Boolean = false,
         val nowPlaying: Track? = null,
-        val volume: Double = 1.0,
+        val coverUrl: String? = null,
         val positionMs: Int = 0,
         val durationMs: Int = 0,
         val loop: LoopMode = LoopMode.OFF,
@@ -76,16 +79,19 @@ class ConsoleViewModel @Inject constructor(
         ) { status, state, track, queue, posMs ->
             UiState(
                 status = status,
-                isPlaying = state?.isPlaying == true,
+                connected = status == ConnectionStatus.CONNECTED,
+                isPlaying = activePlaying(state),
                 nowPlaying = track,
-                volume = state?.volume ?: 1.0,
+                coverUrl = track?.id?.let(mediaUrls::cover),
                 positionMs = posMs,
                 durationMs = ((track?.lengthS ?: 0.0) * 1000).toInt(),
                 loop = state?.ambient?.loop ?: LoopMode.OFF,
                 shuffle = state?.ambient?.shuffle ?: ShuffleMode.OFF,
                 queue = queue,
             )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), UiState())
+        }
+            .combine(playbackController.enabled) { ui, playingHere -> ui.copy(playingHere = playingHere) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), UiState())
 
     init {
         if (syncClient.status.value == ConnectionStatus.DISCONNECTED) {
@@ -97,10 +103,21 @@ class ConsoleViewModel @Inject constructor(
         startPositionTicker()
     }
 
+    /** The lane actually on the outputs: an interrupt overrides ambient while it's active,
+     *  so the now-playing card, seek bar and clock must follow it — not just ambient. */
+    private fun activeTrackId(state: PlayerState?): Int? =
+        state?.interrupt?.currentTrackId ?: state?.ambient?.currentTrackId
+
+    private fun activePosition(state: PlayerState?): Int =
+        state?.interrupt?.positionMs ?: state?.ambient?.positionMs ?: 0
+
+    private fun activePlaying(state: PlayerState?): Boolean =
+        state?.interrupt != null || state?.isPlaying == true
+
     private fun observeCurrentTrack() {
         viewModelScope.launch {
             syncClient.state
-                .map { it?.ambient?.currentTrackId }
+                .map { activeTrackId(it) }
                 .distinctUntilChanged()
                 .collect { trackId -> nowPlaying.value = trackId?.let { resolveTrack(it) } }
         }
@@ -119,9 +136,9 @@ class ConsoleViewModel @Inject constructor(
     private fun observeServerPosition() {
         viewModelScope.launch {
             syncClient.state
-                .map { it?.ambient?.let { a -> a.currentTrackId to a.positionMs } }
+                .map { activeTrackId(it) to activePosition(it) }
                 .distinctUntilChanged()
-                .collect { position.value = it?.second ?: 0 }
+                .collect { position.value = it.second }
         }
     }
 
@@ -129,7 +146,7 @@ class ConsoleViewModel @Inject constructor(
         viewModelScope.launch {
             while (true) {
                 delay(TICK_MS)
-                val playing = syncClient.state.value?.isPlaying == true
+                val playing = activePlaying(syncClient.state.value)
                 val durMs = ((nowPlaying.value?.lengthS ?: 0.0) * 1000).toInt()
                 if (playing && durMs > 0) {
                     position.update { (it + TICK_MS.toInt()).coerceAtMost(durMs) }
@@ -165,10 +182,6 @@ class ConsoleViewModel @Inject constructor(
 
     fun skipPrevious() = syncClient.send(Action.AmbientSkipPrev)
 
-    fun setVolume(volume: Double) {
-        syncClient.send(Action.SetVolume(volume.coerceIn(0.0, 1.0)))
-    }
-
     fun seekTo(positionMs: Int) {
         val clamped = positionMs.coerceAtLeast(0)
         position.value = clamped // optimistic: move the thumb now, the server will confirm
@@ -203,14 +216,8 @@ class ConsoleViewModel @Inject constructor(
         syncClient.send(Action.AmbientSetQueue(ids.toMutableList().apply { removeAt(index) }))
     }
 
-    fun signOut(onDone: () -> Unit) {
-        viewModelScope.launch {
-            syncClient.disconnect()
-            authRepository.logout()
-            serverConfig.forget()
-            onDone()
-        }
-    }
+    /** Cover-art URL for a track id (used by queue rows). */
+    fun coverUrl(trackId: Int): String? = mediaUrls.cover(trackId)
 
     private fun deviceName(): String = Build.MODEL?.takeIf { it.isNotBlank() } ?: "Baton"
 

@@ -6,6 +6,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import eu.junak.baton.core.network.api.AuthApi
 import eu.junak.baton.core.network.api.LibraryApi
+import eu.junak.baton.core.network.api.ModesApi
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import java.util.concurrent.TimeUnit
@@ -26,6 +27,10 @@ object ApiModule {
     @Provides
     @Singleton
     fun provideLibraryApi(retrofit: Retrofit): LibraryApi = retrofit.create(LibraryApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideModesApi(retrofit: Retrofit): ModesApi = retrofit.create(ModesApi::class.java)
 
     /**
      * Bare client for the setup-time `/api/health` probe: no cookie jar and no

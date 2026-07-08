@@ -5,12 +5,15 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.model.Track
+import eu.junak.baton.core.network.MediaUrls
 import eu.junak.baton.core.network.api.FolderOut
 import eu.junak.baton.core.network.api.LibraryApi
 import eu.junak.baton.core.sync.SyncClient
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,6 +27,7 @@ import javax.inject.Inject
 class LibraryViewModel @Inject constructor(
     private val libraryApi: LibraryApi,
     private val syncClient: SyncClient,
+    private val mediaUrls: MediaUrls,
 ) : ViewModel() {
 
     data class UiState(
@@ -39,8 +43,13 @@ class LibraryViewModel @Inject constructor(
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
 
+    /** Drives debounced search; updated on every keystroke, but only the value the user
+     *  pauses on actually hits the network. */
+    private val queryFlow = MutableStateFlow("")
+
     init {
         loadFolder("")
+        observeSearch()
     }
 
     fun loadFolder(path: String) {
@@ -72,20 +81,30 @@ class LibraryViewModel @Inject constructor(
 
     fun onQueryChange(query: String) {
         _ui.update { it.copy(query = query) }
-        if (query.isBlank()) {
-            _ui.update { it.copy(searchResults = null) }
-            return
-        }
+        queryFlow.value = query
+    }
+
+    /**
+     * Debounced search: [collectLatest] cancels the pending [delay] (and any in-flight request)
+     * the instant a newer keystroke arrives, so only the query the user paused on hits the network —
+     * no per-keystroke request storm, and a newer result can never be overwritten by an older one.
+     */
+    private fun observeSearch() {
         viewModelScope.launch {
-            runCatching { libraryApi.search(query) }
-                .onSuccess { response ->
-                    // Drop a stale response if the query has since moved on.
-                    if (_ui.value.query == query) {
-                        _ui.update { it.copy(searchResults = response.tracks) }
-                    }
+            queryFlow.collectLatest { query ->
+                if (query.isBlank()) {
+                    _ui.update { it.copy(searchResults = null) }
+                    return@collectLatest
                 }
+                delay(SEARCH_DEBOUNCE_MS)
+                runCatching { libraryApi.search(query) }
+                    .onSuccess { response -> _ui.update { it.copy(searchResults = response.tracks) } }
+            }
         }
     }
+
+    /** Cover-art URL for a track id, for list thumbnails. */
+    fun coverUrl(trackId: Int): String? = mediaUrls.cover(trackId)
 
     fun playTrack(track: Track) {
         syncClient.send(Action.AmbientPlayTrack(track.id))
@@ -95,7 +114,16 @@ class LibraryViewModel @Inject constructor(
         syncClient.send(Action.AmbientEnqueue(trackId = track.id))
     }
 
+    /** Play [track] as an interrupt: it takes over now (ambient pauses) and returns when done. */
+    fun playInterrupt(track: Track) {
+        syncClient.send(Action.FireInterruptTrack(trackId = track.id, fadeInMs = 500, fadeOutMs = 500))
+    }
+
     fun playCurrentFolder() {
         syncClient.send(Action.AmbientPlayFolder(path = _ui.value.path))
+    }
+
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 300L
     }
 }

@@ -4,7 +4,7 @@ compileSdk = "35"
 minSdk = "33"
 targetSdk = "35"
 # NOTE: "newer Android" floor is minSdk 33. compile/target pinned to 35 (Android
-# 15) for first-build stability with AGP 8.7; bump these + agp to reach 36.
+# 15); bump these + agp together to reach 36 once the toolchain is comfortable.
 
 # Build tooling
 agp = "9.2.1"
