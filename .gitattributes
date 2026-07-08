@@ -1,0 +1,6 @@
+# Gradle wrapper: the Unix launcher must stay LF (CI runs it on Linux), the
+# Windows launcher CRLF, and the jar is binary — so committing from Windows
+# doesn't corrupt them and break the build.
+gradlew      text eol=lf
+gradlew.bat  text eol=crlf
+*.jar        binary
