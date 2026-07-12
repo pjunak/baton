@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +52,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
+import eu.junak.baton.feature.update.UpdateState
+import eu.junak.baton.feature.update.Updater
 import eu.junak.baton.ui.console.ConsoleScreen
 import eu.junak.baton.ui.library.LibraryScreen
 import eu.junak.baton.ui.session.SessionScreen
@@ -59,6 +63,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
@@ -73,6 +78,7 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val syncClient: SyncClient,
+    updater: Updater,
 ) : ViewModel() {
     val errors: SharedFlow<String> = syncClient.errors
 
@@ -86,6 +92,15 @@ class MainViewModel @Inject constructor(
                 connected = status == ConnectionStatus.CONNECTED,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlayState())
+
+    /** Lights the Settings-tab badge while an update is available / in flight
+     *  (fed by the silent launch-time check or a manual one). */
+    val updateAvailable: StateFlow<Boolean> =
+        updater.state
+            .map {
+                it is UpdateState.Available || it is UpdateState.Downloading || it is UpdateState.ReadyToInstall
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
     fun playPause() {
         val state = syncClient.state.value
@@ -106,6 +121,7 @@ fun MainScreen(
     var tabIndex by rememberSaveable { mutableIntStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
     val playState by viewModel.playState.collectAsStateWithLifecycle()
+    val updateAvailable by viewModel.updateAvailable.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.errors.collect { snackbarHostState.showSnackbar(it) }
@@ -119,6 +135,7 @@ fun MainScreen(
                 isPlaying = playState.isPlaying,
                 enabled = playState.connected,
                 onPlayPause = viewModel::playPause,
+                settingsBadge = updateAvailable,
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -149,6 +166,7 @@ private fun DockedNavBar(
     isPlaying: Boolean,
     enabled: Boolean,
     onPlayPause: () -> Unit,
+    settingsBadge: Boolean,
 ) {
     Box(Modifier.fillMaxWidth()) {
         Surface(tonalElevation = 3.dp, shadowElevation = 8.dp, modifier = Modifier.fillMaxWidth()) {
@@ -163,7 +181,7 @@ private fun DockedNavBar(
                 NavItem(MainTab.LIBRARY, selectedIndex == 1) { onSelect(1) }
                 Spacer(Modifier.width(72.dp)) // gap the play button rests in
                 NavItem(MainTab.SESSION, selectedIndex == 2) { onSelect(2) }
-                NavItem(MainTab.SETTINGS, selectedIndex == 3) { onSelect(3) }
+                NavItem(MainTab.SETTINGS, selectedIndex == 3, badge = settingsBadge) { onSelect(3) }
             }
         }
         FilledIconButton(
@@ -184,7 +202,12 @@ private fun DockedNavBar(
 }
 
 @Composable
-private fun RowScope.NavItem(tab: MainTab, selected: Boolean, onClick: () -> Unit) {
+private fun RowScope.NavItem(
+    tab: MainTab,
+    selected: Boolean,
+    badge: Boolean = false,
+    onClick: () -> Unit,
+) {
     val color = if (selected) ActiveAccent else MaterialTheme.colorScheme.onSurfaceVariant
     Column(
         modifier = Modifier
@@ -194,7 +217,9 @@ private fun RowScope.NavItem(tab: MainTab, selected: Boolean, onClick: () -> Uni
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(tab.icon, contentDescription = tab.label, tint = color)
+        BadgedBox(badge = { if (badge) Badge() }) {
+            Icon(tab.icon, contentDescription = tab.label, tint = color)
+        }
         Spacer(Modifier.height(2.dp))
         Text(tab.label, style = MaterialTheme.typography.labelSmall, color = color)
     }

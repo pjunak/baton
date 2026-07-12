@@ -23,9 +23,9 @@ Like the server, Baton is **generic** — it bakes in *no* connection details. P
 | **Library** — browse folder tree, debounced search, play track/folder, enqueue | ✅ Working |
 | **Settings** — account + **sign-out**, server + "Open web app", app version | ✅ Working |
 | **Session** — modes, cues, soundboards/SFX, EQ, interrupts | ⏳ Planned |
-| **Devices + phone-as-speaker** (Media3) | ⏳ Planned |
-| **In-app updater** (GitHub Releases → `PackageInstaller`) | ⏳ Planned |
-| **CI + signed release** (GitHub Actions) | ⏳ Planned |
+| **Devices + phone-as-speaker** (Media3, media-style notification with server-routed transport) | ✅ Working |
+| **In-app updater** (GitHub Releases → system installer) | ✅ Working |
+| **CI + signed release** (GitHub Actions) | ✅ Working (needs the keystore secrets — see §12) |
 
 ---
 
@@ -46,9 +46,8 @@ build-workflow caveats are load-bearing:
    (Ctrl+F9).** AGP 9 dropped the `androidTestClasses` anchor task that "Make Project" still
    requests, so Make fails at task selection. (The `androidTest` variant was removed from `:app`
    for the same reason — Compose UI tests return in a later pass.)
-2. **`gradle/wrapper/gradle-wrapper.jar` is intentionally absent** (Android Studio uses its own
-   Gradle). For command-line or CI builds, regenerate it once with `gradle wrapper` before
-   `./gradlew …`.
+2. Command-line builds need `JAVA_HOME` pointing at a JDK 17+ (Android Studio's bundled
+   `jbr` works: `C:\Program Files\Android\Android Studio\jbr`).
 
 Typical loop: open in Android Studio → let it sync → **Run ▶** on an emulator or device → the app
 opens to the setup wizard.
@@ -80,8 +79,11 @@ core-network/    One shared OkHttpClient + encrypted CookieJar, Retrofit service
                  server-URL resolution, the auth/session repository.
 core-sync/       SyncClient: the WebSocket → StateFlow<PlayerState> + send(Action), with
                  reconnect/backoff and the register handshake.
-feature-playback/ (skeleton) MediaSessionService + PlayerState→ExoPlayer reconciler (speaker role).
-feature-update/   (skeleton) GitHub Releases check → download → PackageInstaller.
+feature-playback/ Foreground service + Media3 MediaSession: PlayerState→ExoPlayer reconciler
+                  (speaker role) with a media-style notification whose transport routes to the
+                  server (lock screen / media buttons control the room, not the local mirror).
+feature-update/   GitHub Releases check → download-with-progress → system installer
+                  (FileProvider + ACTION_VIEW). Silent check on launch badges the Settings tab.
 ```
 
 The one piece of plumbing that makes auth "just work": the **same** `OkHttpClient` + `CookieJar`
@@ -95,14 +97,14 @@ UI backlog: **[docs/DESIGN-NOTES.md](docs/DESIGN-NOTES.md)**
 ## Tech stack
 
 Kotlin 2.2 · Jetpack Compose (Material 3, dynamic color) · Hilt · Coroutines/Flow (MVVM) ·
-OkHttp + Retrofit · kotlinx.serialization · Coil 3 · Media3 (planned) · AGP 9.2 / Gradle 9.4 ·
+OkHttp + Retrofit · kotlinx.serialization · Coil 3 · Media3 · AGP 9.2 / Gradle 9.4 ·
 version catalog (`gradle/libs.versions.toml`) · minSdk 33 / compile+target 35.
 
 ## Distribution
 
-GitHub Releases as the artifact host, with an in-app updater (`PackageInstaller`) — no Play Store
-for now (a single upload key is kept so a future Play App Signing migration stays clean). Not yet
-implemented; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §10/§12.
+GitHub Releases as the artifact host, with an in-app updater (system installer via
+FileProvider) — no Play Store for now (a single upload key is kept so a future Play App
+Signing migration stays clean). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §10/§12.
 
 ## License
 

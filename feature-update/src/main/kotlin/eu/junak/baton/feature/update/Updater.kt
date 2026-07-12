@@ -55,28 +55,44 @@ class Updater @Inject constructor(
     /** Query the latest release and compare versions. Result lands in [state]. */
     fun check() {
         _state.value = UpdateState.Checking
+        scope.launch { _state.value = resolveLatest() }
+    }
+
+    /**
+     * The silent launch-time variant: only runs from [UpdateState.Idle] (never
+     * stomps an in-flight check/download), and only ever *publishes*
+     * [UpdateState.Available] — an unreachable GitHub or an up-to-date install
+     * stays quietly Idle instead of greeting the user with a status they
+     * didn't ask about. What Available enables: the Settings-tab badge and the
+     * pre-populated update card when they get there.
+     */
+    fun checkOnLaunch() {
+        if (_state.value != UpdateState.Idle) return
         scope.launch {
-            val repo = repoParts() ?: run {
-                _state.value = UpdateState.Error("Update source is misconfigured.")
-                return@launch
+            val result = resolveLatest()
+            if (result is UpdateState.Available && _state.value == UpdateState.Idle) {
+                _state.value = result
             }
-            val release = runCatching { gitHubApi.latestRelease(repo.first, repo.second) }.getOrElse { e ->
-                // A 404 from /releases/latest just means no full release is published yet — not an error.
-                _state.value = if (e is HttpException && e.code() == 404) {
-                    UpdateState.UpToDate
-                } else {
-                    UpdateState.Error("Couldn't check GitHub — ${e.message ?: "network error"}")
-                }
-                return@launch
+        }
+    }
+
+    private suspend fun resolveLatest(): UpdateState {
+        val repo = repoParts() ?: return UpdateState.Error("Update source is misconfigured.")
+        val release = runCatching { gitHubApi.latestRelease(repo.first, repo.second) }.getOrElse { e ->
+            // A 404 from /releases/latest just means no full release is published yet — not an error.
+            return if (e is HttpException && e.code() == 404) {
+                UpdateState.UpToDate
+            } else {
+                UpdateState.Error("Couldn't check GitHub — ${e.message ?: "network error"}")
             }
-            val latest = release.tagName.removePrefix("v").trim()
-            val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
-            _state.value = when {
-                apk == null -> UpdateState.Error("The latest release has no APK attached.")
-                isNewer(latest, currentVersion()) ->
-                    UpdateState.Available(latest, release.body?.takeIf { it.isNotBlank() }, apk.browserDownloadUrl)
-                else -> UpdateState.UpToDate
-            }
+        }
+        val latest = release.tagName.removePrefix("v").trim()
+        val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+        return when {
+            apk == null -> UpdateState.Error("The latest release has no APK attached.")
+            isNewer(latest, currentVersion()) ->
+                UpdateState.Available(latest, release.body?.takeIf { it.isNotBlank() }, apk.browserDownloadUrl)
+            else -> UpdateState.UpToDate
         }
     }
 

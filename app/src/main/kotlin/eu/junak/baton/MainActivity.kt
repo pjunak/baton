@@ -10,12 +10,16 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
+import eu.junak.baton.feature.update.Updater
 import eu.junak.baton.ui.navigation.BatonApp
 import eu.junak.baton.ui.theme.BatonTheme
+import javax.inject.Inject
 
 /** Single-activity host. The whole UI is Compose under [BatonApp]. */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject lateinit var updater: Updater
 
     // Notifications back the phone-as-speaker foreground service; request once (Android 13+).
     private val requestNotifications =
@@ -25,6 +29,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         maybeRequestNotificationPermission()
+        // Silent launch-time update check: on a newer release it lights the
+        // Settings-tab badge; otherwise it stays invisible (see checkOnLaunch).
+        updater.checkOnLaunch()
         setContent {
             BatonTheme {
                 BatonApp()

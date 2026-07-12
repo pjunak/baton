@@ -71,12 +71,16 @@ nicety, not a second source of truth.
 **Context.** A niche self-hosted tool; the operator already trusts the project. Play Store adds
 review latency and account friction.
 
-**Decision.** Publish signed APKs to GitHub Releases; the app self-updates via the `PackageInstaller`
-session API after checking the Releases API against its own `versionCode`.
+**Decision.** Publish signed APKs to GitHub Releases; the app self-updates via the Releases API.
 
 **Consequences.** Needs `REQUEST_INSTALL_PACKAGES` + a one-time system "allow installs from Baton".
 A single **upload key** is kept forever so a future Play App Signing migration stays clean.
 Unauthenticated Releases API (public repo) is ample for launch-time checks.
+
+**Amendment (as built).** The install step uses the system installer (`FileProvider` +
+`ACTION_VIEW`) rather than the `PackageInstaller` session API — the confirmation UI it shows is
+a feature for a sideloaded updater, not friction — and the version compare runs on the release
+tag vs the installed `versionName` (both derive from the same git tag in CI, so they agree).
 
 ---
 

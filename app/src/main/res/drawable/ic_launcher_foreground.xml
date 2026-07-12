@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The mark: a conductor's baton mid-stroke over its motion arc. The arc
+     carries the ecosystem palette (the music web client's playback blue →
+     authoring teal); the baton itself is off-white with a cork handle.
+     Everything stays inside the 66dp adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Motion arc, blue → teal along the sweep. -->
+    <path
+        android:pathData="M39,75 A28,28 0 0 0 75,39"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="39"
+                android:startY="75"
+                android:endX="75"
+                android:endY="39">
+                <item android:offset="0" android:color="#FF6AA6FF" />
+                <item android:offset="1" android:color="#FF3FC7C2" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Baton shaft. -->
+    <path
+        android:pathData="M40.5,67.5 L64.5,43.5"
+        android:strokeColor="#FFECEFF4"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Cork handle. -->
+    <path
+        android:pathData="M33.5,74.5 L39.5,68.5"
+        android:strokeColor="#FFD9A66C"
+        android:strokeWidth="8.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Tip ball. -->
+    <path
+        android:pathData="M67,41 m-3.2,0 a3.2,3.2 0 1 1 6.4,0 a3.2,3.2 0 1 1 -6.4,0"
+        android:fillColor="#FFECEFF4" />
+</vector>

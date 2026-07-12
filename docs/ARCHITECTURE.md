@@ -19,7 +19,7 @@ This is a **design document** — it describes the intended whole. What is actua
 | `core-model`, `core-network`, `core-sync` | ✅ Built (unit tests for serialization + URL handling) |
 | Setup wizard, bottom-nav shell, Console, Library, Settings | ✅ Built |
 | Console transport / volume / seek / queue / shuffle / repeat | ✅ Built |
-| `feature-playback` (speaker), `feature-update` (updater) | ⏳ Empty skeletons |
+| `feature-playback` (speaker + media-style notification), `feature-update` (updater) | ✅ Built |
 | Session + Devices surfaces | ⏳ Placeholders |
 | Spotless/detekt, Compose UI tests, CI + signed release | ⏳ Deferred (see §3, §12) |
 
@@ -85,7 +85,7 @@ This mirrors the backend's own "server-as-reducer" design almost 1:1.
 | Images | Coil 3 (uses the shared OkHttp client) |
 | Storage | SharedPreferences (`NetworkStore`) + Android Keystore-encrypted session/cookie (`SecureStore`). DataStore was deferred — the cookie jar needs synchronous reads. Room only if/when offline caching is added |
 | Navigation | Navigation Compose (type-safe routes) |
-| Updater | GitHub Releases API + OkHttp download + `PackageInstaller` |
+| Updater | GitHub Releases API + OkHttp download + system installer (FileProvider + `ACTION_VIEW`) |
 | Build | Gradle Kotlin DSL + version catalog. AGP 9.2.1 / Gradle 9.4 / Kotlin 2.2.10 / Hilt 2.57.2; `newDsl=false` (Hilt × AGP-9 constraint — see [DECISIONS](DECISIONS.md) ADR-0007) |
 | CI | GitHub Actions (`ci.yml` + `release.yml`) |
 | Quality | JUnit + Turbine unit tests (built). Spotless/detekt + Compose UI tests **deferred** past the AGP 9 upgrade (see §12) |
@@ -105,7 +105,7 @@ core-network/        Shared OkHttpClient + encrypted CookieJar, Retrofit service
 core-sync/           SyncClient: the WS connection → StateFlow<PlayerState> + send(Action).
                      Reconnect/backoff, the register handshake.
 feature-playback/    MediaSessionService + the PlayerState→ExoPlayer reconciler (speaker role).
-feature-update/      GitHub Releases check → download → PackageInstaller.
+feature-update/      GitHub Releases check → download → system installer.
 ```
 
 ---
@@ -206,8 +206,9 @@ device is "on" (in `active_output_device_ids`, or a local override the user cont
 4. **Session** — active mode picker, cues, soundboards (fire/loop SFX), EQ presets, interrupts.
 5. **Devices** — connected outputs, toggle active, per-device trim, toggle *this phone* as a speaker
    (local on/off + local volume).
-6. **Settings** — account + **sign-out**, server URL + **Open web app**, app version (built).
-   Change-server, active sessions, this-device name, speaker prefs, and check-for-updates are planned.
+6. **Settings** — account + **sign-out**, server URL + **Open web app**, app version, and the
+   in-app updater (check / download / install, plus a silent launch check that badges the tab).
+   Change-server, active sessions, this-device name, and speaker prefs are planned.
 
 ---
 
@@ -216,12 +217,18 @@ device is "on" (in `active_output_device_ids`, or a local override the user cont
 GitHub Releases as the artifact host; the app self-updates (no Play Store):
 
 - **Source:** `BuildConfig.UPDATE_REPO` (build-time field, default `pjunak/baton`; a fork repoints it).
-- **Check:** `GET https://api.github.com/repos/{UPDATE_REPO}/releases/latest`; compare to
-  `BuildConfig.VERSION_CODE`. Unauthenticated (public repo) → 60 req/hr/IP, ample for launch checks.
-- **Download:** OkHttp streams the `.apk` asset to `cacheDir` with in-app progress.
-- **Install:** `PackageInstaller` session API. Requires `REQUEST_INSTALL_PACKAGES` + a one-time
-  "allow installs from Baton" system toggle.
-- **UX:** check on launch; offer Install / Skip-this-version / Later.
+- **Check:** `GET https://api.github.com/repos/{UPDATE_REPO}/releases/latest`; numeric dotted
+  compare of the release tag against the installed `versionName` (`Updater.isNewer`).
+  Unauthenticated (public repo) → 60 req/hr/IP, ample for launch checks. A 404 (no release
+  published yet) reads as up-to-date.
+- **Download:** OkHttp streams the `.apk` asset to `cacheDir/updates` with in-app progress.
+- **Install:** system installer — `FileProvider` (`{applicationId}.updates`) + `ACTION_VIEW` with
+  the APK mime type. Requires `REQUEST_INSTALL_PACKAGES` + the one-time "allow installs from
+  Baton" system toggle (the app deep-links to it when missing).
+- **UX:** silent check on launch (only ever *surfaces* an available update — a badge on the
+  Settings tab; failures and up-to-date stay quiet), manual "Check for updates" in Settings with
+  the full state machine (checking / available + notes / progress / install / error).
+  Skip-this-version / Later persistence is still open.
 
 ---
 

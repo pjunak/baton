@@ -1,6 +1,8 @@
-// The speaker role: a Media3 MediaSessionService + a reconciler that maps
-// PlayerState onto ExoPlayer (interrupt overrides ambient; seek only on track
-// change or a big jump). Active only when this device is a designated output.
+// The speaker role: a foreground service with a Media3 MediaSession + a
+// reconciler that maps PlayerState onto ExoPlayer (interrupt overrides
+// ambient; seek only on track change or a big jump). The session's transport
+// routes to the SERVER (lock screen / media buttons control the room, not the
+// local mirror). Active only when this device is a designated output.
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
