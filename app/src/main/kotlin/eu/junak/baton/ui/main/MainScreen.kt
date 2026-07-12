@@ -52,6 +52,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
+import eu.junak.baton.feature.playback.PlaybackController
 import eu.junak.baton.feature.update.UpdateState
 import eu.junak.baton.feature.update.Updater
 import eu.junak.baton.ui.console.ConsoleScreen
@@ -78,9 +79,23 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val syncClient: SyncClient,
+    private val playbackController: PlaybackController,
     updater: Updater,
 ) : ViewModel() {
     val errors: SharedFlow<String> = syncClient.errors
+
+    /** The session died out from under us (expired, or revoked from another
+     *  device). The screen routes to re-login — the server URL is kept, so
+     *  it's one password away. */
+    val sessionLost: SharedFlow<Unit> = syncClient.sessionExpired
+
+    /** Tear down what a dead session can't drive: the speaker role (its
+     *  foreground service would otherwise outlive the sign-out screen) and
+     *  the now-guest socket (re-login reconnects with the fresh cookie). */
+    fun onSessionLost() {
+        playbackController.setEnabled(false)
+        syncClient.disconnect()
+    }
 
     data class PlayState(val isPlaying: Boolean = false, val connected: Boolean = false)
 
@@ -125,6 +140,13 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         viewModel.errors.collect { snackbarHostState.showSnackbar(it) }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.sessionLost.collect {
+            viewModel.onSessionLost()
+            onSignedOut() // → setup wizard, which starts at credentials (URL kept)
+        }
     }
 
     Scaffold(

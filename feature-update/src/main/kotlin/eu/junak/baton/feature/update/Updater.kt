@@ -49,6 +49,8 @@ class Updater @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    @Volatile private var launchCheckDone = false
+
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val state: StateFlow<UpdateState> = _state.asStateFlow()
 
@@ -67,6 +69,10 @@ class Updater @Inject constructor(
      * pre-populated update card when they get there.
      */
     fun checkOnLaunch() {
+        // Once per process: onCreate re-runs on every rotation/theme change,
+        // and each launch check is a real api.github.com call.
+        if (launchCheckDone) return
+        launchCheckDone = true
         if (_state.value != UpdateState.Idle) return
         scope.launch {
             val result = resolveLatest()
@@ -90,7 +96,7 @@ class Updater @Inject constructor(
         val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
         return when {
             apk == null -> UpdateState.Error("The latest release has no APK attached.")
-            isNewer(latest, currentVersion()) ->
+            isNewerVersion(latest, currentVersion()) ->
                 UpdateState.Available(latest, release.body?.takeIf { it.isNotBlank() }, apk.browserDownloadUrl)
             else -> UpdateState.UpToDate
         }
@@ -101,6 +107,9 @@ class Updater @Inject constructor(
         _state.value = UpdateState.Downloading(0f)
         scope.launch {
             val dest = File(context.cacheDir, "updates/baton-${available.version}.apk")
+            // Evict APKs from previous updates — they'd otherwise pile up in
+            // the cache dir forever (one per release ever installed).
+            dest.parentFile?.listFiles()?.forEach { if (it != dest) it.delete() }
             runCatching { downloadTo(available.downloadUrl, dest) { p -> _state.value = UpdateState.Downloading(p) } }
                 .onSuccess {
                     _state.value = UpdateState.ReadyToInstall(dest, available.version)
@@ -169,21 +178,6 @@ class Updater @Inject constructor(
         val info: PackageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         return info.versionName ?: "0"
     }
-
-    /** Numeric dotted-version compare ("1.2.3" > "1.2" > "1.1.9"); non-numeric suffixes ignored. */
-    private fun isNewer(latest: String, current: String): Boolean {
-        val l = versionParts(latest)
-        val c = versionParts(current)
-        for (i in 0 until maxOf(l.size, c.size)) {
-            val lv = l.getOrElse(i) { 0 }
-            val cv = c.getOrElse(i) { 0 }
-            if (lv != cv) return lv > cv
-        }
-        return false
-    }
-
-    private fun versionParts(v: String): List<Int> =
-        v.trim().removePrefix("v").split(".", "-", "+").mapNotNull { it.toIntOrNull() }
 
     private companion object {
         const val DOWNLOAD_BUFFER = 64 * 1024

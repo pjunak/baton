@@ -189,10 +189,11 @@ class ConsoleViewModel @Inject constructor(
     }
 
     fun cycleShuffle() {
+        // Two-state: the server's shuffle enum is off/random ("weighted" was
+        // removed backend-side — sending it got validation-rejected).
         val next = when (uiState.value.shuffle) {
             ShuffleMode.OFF -> ShuffleMode.RANDOM
-            ShuffleMode.RANDOM -> ShuffleMode.WEIGHTED
-            ShuffleMode.WEIGHTED -> ShuffleMode.OFF
+            ShuffleMode.RANDOM -> ShuffleMode.OFF
         }
         syncClient.send(Action.AmbientSetShuffle(next))
     }

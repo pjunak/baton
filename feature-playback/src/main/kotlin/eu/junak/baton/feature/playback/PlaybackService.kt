@@ -78,7 +78,7 @@ class PlaybackService : Service() {
     private var player: ExoPlayer? = null
     private var mediaSession: MediaSession? = null
     private var loadedTrackId: Int? = null
-    private var lastServerPositionMs: Int = -1
+    private var lastPositionEpoch: Int = -1
 
     /** Live one-shot SFX players (fire-and-forget, layered over the music); each frees itself on end. */
     private val sfxPlayers = mutableListOf<MediaPlayer>()
@@ -240,11 +240,12 @@ class PlaybackService : Service() {
 
     /**
      * Map server state onto the local player — see clients/README.md. Crucially this is
-     * *edge-triggered*: volume is applied on every emission (cheap and glitch-free), but the player
-     * is only re-seeked when the track changes or the server's `position_ms` actually changes. The
-     * server re-stamps position only on real seeks/skips, so an unrelated change (a volume tweak, a
-     * shuffle toggle, a queue edit) carries a *stale* position and must NOT trigger a seek — doing so
-     * was what made playback hitch on every control.
+     * *edge-triggered*: volume is applied on every emission (cheap and glitch-free), but the
+     * player is only re-seeked when the track changes or `position_epoch` changed. That is the
+     * documented seek contract: the server re-stamps `position_ms` on EVERY broadcast (it
+     * materializes the ticking clock), so comparing positions both misses small deliberate
+     * seeks and mis-fires hard catch-up seeks after buffer drift — the epoch counter is bumped
+     * only on real moves (play, seek, skip, loop restart, interrupt fire/advance/end).
      */
     private fun reconcile(state: PlayerState?, enabled: Boolean) {
         val player = this.player ?: return
@@ -282,12 +283,14 @@ class PlaybackService : Service() {
             player.prepare()
             player.seekTo(positionMs.toLong())
             loadedTrackId = trackId
-            lastServerPositionMs = positionMs
-        } else if (positionMs != lastServerPositionMs) {
-            // A genuine server-side seek/skip — but only physically seek if we've actually drifted
-            // (a position report that already matches us shouldn't rebuffer).
-            lastServerPositionMs = positionMs
-            if (abs(player.currentPosition - positionMs) > SEEK_THRESHOLD_MS) {
+            lastPositionEpoch = state.positionEpoch
+        } else if (state.positionEpoch != lastPositionEpoch) {
+            // A deliberate server-side move — seek exactly, even a small hop
+            // (the operator nudging 1s back must not be swallowed by a
+            // drift threshold). Same-position no-ops are skipped only to
+            // avoid a pointless rebuffer.
+            lastPositionEpoch = state.positionEpoch
+            if (abs(player.currentPosition - positionMs) > SAME_POSITION_SLACK_MS) {
                 player.seekTo(positionMs.toLong())
             }
         }
@@ -498,7 +501,7 @@ class PlaybackService : Service() {
         const val ACTION_NEXT = "eu.junak.baton.feature.playback.NEXT"
         const val ACTION_PREV = "eu.junak.baton.feature.playback.PREV"
         const val CUSTOM_ACTION_STOP = "eu.junak.baton.feature.playback.STOP_SPEAKER"
-        const val SEEK_THRESHOLD_MS = 1500L
+        const val SAME_POSITION_SLACK_MS = 250L
         const val ART_CACHE_MAX = 6
     }
 }

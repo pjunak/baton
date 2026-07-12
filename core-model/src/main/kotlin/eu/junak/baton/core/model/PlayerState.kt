@@ -26,9 +26,6 @@ enum class ShuffleMode {
 
     @SerialName("random")
     RANDOM,
-
-    @SerialName("weighted")
-    WEIGHTED,
 }
 
 @Serializable
@@ -105,6 +102,11 @@ data class PositionReport(
 @Serializable
 data class PlayerState(
     val revision: Int = 0,
+    /** Monotonic counter bumped ONLY on deliberate position moves (play, seek,
+     *  skip, loop restart, interrupt fire/advance/end). The seek contract:
+     *  reposition the active lane iff this changed — NEVER infer seeks by
+     *  comparing positions, which are re-stamped on every broadcast. */
+    val positionEpoch: Int = 0,
     val isPlaying: Boolean = false,
     val volume: Double = 1.0,
     val activeModeId: String? = null,

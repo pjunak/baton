@@ -6,10 +6,15 @@ import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.network.data.NetworkStore
+import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,6 +34,8 @@ class PlaybackController @Inject constructor(
     private val syncClient: SyncClient,
     private val networkStore: NetworkStore,
 ) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     private val _enabled = MutableStateFlow(false)
 
     /** Whether this phone is currently acting as an audio output. */
@@ -36,6 +43,24 @@ class PlaybackController @Inject constructor(
 
     /** This device's protocol id (`device_id == client_id`). */
     val deviceId: String get() = networkStore.clientId
+
+    init {
+        // The server wipes `active_output_device_ids` when a socket drops, so
+        // after any reconnect this phone kept playing (the local flag gates
+        // audio) but vanished from every client's Devices/active list. Re-assert
+        // on each CONNECTED edge; the register handshake was already enqueued on
+        // the same ordered socket before the status flips, so the server can
+        // resolve our client_id.
+        scope.launch {
+            syncClient.status.collect { status ->
+                if (status != ConnectionStatus.CONNECTED || !_enabled.value) return@collect
+                val current = syncClient.state.value?.activeOutputDeviceIds.orEmpty()
+                if (deviceId !in current) {
+                    syncClient.send(Action.SetActiveOutputs((current + deviceId).distinct()))
+                }
+            }
+        }
+    }
 
     /** Turn this phone into an audio output (or off). Idempotent. */
     fun setEnabled(on: Boolean) {

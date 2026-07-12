@@ -28,7 +28,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AllInclusive
-import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
@@ -388,15 +387,12 @@ private fun ToggleIcon(
     }
 }
 
-/** Shuffle control. Off/random share the plain shuffle arrows (dimmed vs. accent);
- *  weighted swaps to a die so it's unmistakable next to plain shuffle — "loaded
- *  dice" reading as weighted random (and a fitting nod for a tabletop tool). */
+/** Shuffle control: off (dimmed) ↔ random (accent). */
 @Composable
 private fun ShuffleToggle(mode: ShuffleMode, enabled: Boolean, onClick: () -> Unit) {
     val (icon, label) = when (mode) {
         ShuffleMode.OFF -> Icons.Filled.Shuffle to "Shuffle off"
         ShuffleMode.RANDOM -> Icons.Filled.Shuffle to "Shuffle: random order"
-        ShuffleMode.WEIGHTED -> Icons.Filled.Casino to "Shuffle: weighted random"
     }
     ToggleIcon(icon, label, active = mode != ShuffleMode.OFF, enabled = enabled, onClick = onClick)
 }

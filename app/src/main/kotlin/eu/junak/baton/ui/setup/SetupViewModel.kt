@@ -38,7 +38,19 @@ class SetupViewModel @Inject constructor(
         val error: String? = null,
     )
 
-    private val _ui = MutableStateFlow(UiState())
+    private val _ui = MutableStateFlow(
+        serverConfig.baseUrlOrNull()?.let { existing ->
+            // Re-login entry: landing here with a server still configured means
+            // the session expired/was revoked (a normal sign-out forgets the
+            // URL first) — skip straight to credentials; Back re-opens the URL
+            // step with the address prefilled if they want to switch servers.
+            UiState(
+                step = Step.CREDENTIALS,
+                url = existing.toString(),
+                error = "Your session ended — sign in again.",
+            )
+        } ?: UiState(),
+    )
     val ui: StateFlow<UiState> = _ui.asStateFlow()
 
     fun onUrlChange(value: String) = _ui.update { it.copy(url = value, error = null) }

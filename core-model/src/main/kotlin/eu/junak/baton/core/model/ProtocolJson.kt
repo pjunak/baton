@@ -17,11 +17,17 @@ import kotlinx.serialization.json.JsonNamingStrategy
  *   (e.g. `volume`, `return_to_ambient`) rather than relying on its own defaults.
  * - **ignoreUnknownKeys:** on, so a newer server adding fields never breaks an
  *   older client.
+ * - **coerceInputValues:** on, so an unknown *enum value* from a newer server
+ *   (loop/shuffle/crossfade churn is real — "weighted" already came and went)
+ *   coerces to the property's default instead of throwing, which would make
+ *   every subsequent `state_changed` unparseable and freeze the client on
+ *   stale state. Requires enum-typed properties to declare defaults — they do.
  */
 @OptIn(ExperimentalSerializationApi::class)
 val ProtocolJson: Json = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
+    coerceInputValues = true
     classDiscriminator = "type"
     namingStrategy = JsonNamingStrategy.SnakeCase
 }

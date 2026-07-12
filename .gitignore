@@ -65,3 +65,6 @@ CLAUDE.local.md
 .copilot/
 .windsurf/
 .codeium/
+
+# Local Android Studio release output (real releases come from CI)
+app/release/

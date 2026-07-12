@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import eu.junak.baton.core.network.ServerConfig
 import eu.junak.baton.core.network.auth.AuthRepository
 import eu.junak.baton.core.sync.SyncClient
+import eu.junak.baton.feature.playback.PlaybackController
 import eu.junak.baton.feature.update.UpdateState
 import eu.junak.baton.feature.update.Updater
 import java.io.File
@@ -28,6 +29,7 @@ class SettingsViewModel @Inject constructor(
     private val serverConfig: ServerConfig,
     private val syncClient: SyncClient,
     private val updater: Updater,
+    private val playbackController: PlaybackController,
 ) : ViewModel() {
 
     data class UiState(
@@ -59,6 +61,10 @@ class SettingsViewModel @Inject constructor(
         if (_ui.value.signingOut) return
         _ui.update { it.copy(signingOut = true) }
         viewModelScope.launch {
+            // Stop the speaker role first — otherwise its foreground service
+            // and "Baton speaker" notification outlive the sign-out with no
+            // UI left to turn them off.
+            playbackController.setEnabled(false)
             syncClient.disconnect()
             authRepository.logout()
             serverConfig.forget()

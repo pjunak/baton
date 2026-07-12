@@ -70,6 +70,16 @@ class SyncClient @Inject constructor(
     /** Server-reported error frames (e.g. a rejected action), for toasts. */
     val errors: SharedFlow<String> = _errors.asSharedFlow()
 
+    private val _sessionExpired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** Fires when the server tells us the session is gone: a coded
+     *  `session_expired`/`session_revoked` frame (session died mid-connection),
+     *  or the guest-rejection an action gets after reconnecting with a dead
+     *  cookie (the WS upgrade *succeeds* as guest, so there's no 401 to catch).
+     *  The app routes this to the re-login flow instead of letting the user
+     *  strand on a connected-but-powerless Console. */
+    val sessionExpired: SharedFlow<Unit> = _sessionExpired.asSharedFlow()
+
     @Volatile private var webSocket: WebSocket? = null
 
     @Volatile private var manuallyClosed = false
@@ -113,6 +123,11 @@ class SyncClient @Inject constructor(
             _status.value = ConnectionStatus.DISCONNECTED
             return
         }
+        // Supersede any previous socket (two ViewModels observing DISCONNECTED
+        // can both call connect()) — without this, the orphan keeps feeding
+        // stale state into _state and its eventual close schedules a rogue
+        // reconnect. Its late callbacks are ignored via the identity guard.
+        webSocket?.cancel()
         _status.value = ConnectionStatus.CONNECTING
         val request = Request.Builder().url(ServerUrl.wsUrl(base)).build()
         webSocket = okHttpClient.newWebSocket(request, Listener())
@@ -129,20 +144,33 @@ class SyncClient @Inject constructor(
         }
     }
 
+    /** True iff [socket] is still the one this client owns — a superseded
+     *  socket's late callbacks must not touch shared state (stale snapshots
+     *  overwriting fresh ones, rogue reconnect scheduling). */
+    private fun isCurrent(socket: WebSocket): Boolean = socket === webSocket
+
     private inner class Listener : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            if (!isCurrent(webSocket)) {
+                webSocket.cancel()
+                return
+            }
             reconnectAttempts = 0
-            _status.value = ConnectionStatus.CONNECTED
-            // Identify ourselves so the operator can designate this device an output.
+            // Identify ourselves so the operator can designate this device an
+            // output. Sent BEFORE the status flips so anything reacting to
+            // CONNECTED (e.g. re-asserting the output designation) enqueues
+            // after register on this ordered socket.
             webSocket.send(
                 json.encodeToString(
                     Action.serializer(),
                     Action.Register(name = deviceName, clientId = networkStore.clientId),
                 ),
             )
+            _status.value = ConnectionStatus.CONNECTED
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            if (!isCurrent(webSocket)) return
             val message = try {
                 json.decodeFromString(ServerMessage.serializer(), text)
             } catch (e: IllegalArgumentException) {
@@ -153,7 +181,18 @@ class SyncClient @Inject constructor(
                 is ServerMessage.StateSnapshot -> _state.value = message.state
                 is ServerMessage.StateChanged -> _state.value = message.state
                 is ServerMessage.SfxFired -> _sfxEvents.tryEmit(message)
-                is ServerMessage.Error -> _errors.tryEmit(message.detail)
+                is ServerMessage.Error -> {
+                    if (message.code == "session_expired" ||
+                        message.code == "session_revoked" ||
+                        // Dead cookie at (re)connect: the upgrade succeeds as a
+                        // guest, so session loss surfaces as this rejection on
+                        // the first action instead of a coded frame.
+                        message.detail.contains("guest sessions cannot mutate")
+                    ) {
+                        _sessionExpired.tryEmit(Unit)
+                    }
+                    _errors.tryEmit(message.detail)
+                }
             }
         }
 
@@ -162,11 +201,13 @@ class SyncClient @Inject constructor(
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            if (!isCurrent(webSocket)) return
             _status.value = ConnectionStatus.DISCONNECTED
             scheduleReconnect()
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            if (!isCurrent(webSocket)) return
             _status.value = ConnectionStatus.DISCONNECTED
             _errors.tryEmit(t.message ?: "Connection lost")
             scheduleReconnect()

@@ -35,7 +35,14 @@ sealed interface ServerMessage {
         val volume: Double = 1.0,
     ) : ServerMessage
 
+    /** `code` is the machine-readable discriminator the server sets on frames
+     *  the client must react to programmatically — currently
+     *  `session_expired` / `session_revoked` (the re-login flow). Null on
+     *  ordinary rejected-action errors. */
     @Serializable
     @SerialName("error")
-    data class Error(val detail: String) : ServerMessage
+    data class Error(
+        val detail: String,
+        val code: String? = null,
+    ) : ServerMessage
 }
