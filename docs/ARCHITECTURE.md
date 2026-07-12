@@ -20,7 +20,7 @@ This is a **design document** — it describes the intended whole. What is actua
 | Setup wizard, bottom-nav shell, Console, Library, Settings | ✅ Built |
 | Console transport / volume / seek / queue / shuffle / repeat | ✅ Built |
 | `feature-playback` (speaker + media-style notification), `feature-update` (updater) | ✅ Built |
-| Session + Devices surfaces | ⏳ Placeholders |
+| Session (modes/cues/soundboard+loops/EQ presets/interrupts) + Devices (Console `DevicePicker`) | ✅ Built |
 | Spotless/detekt, Compose UI tests, CI + signed release | ⏳ Deferred (see §3, §12) |
 
 Sections below marked "(planned)" are not yet implemented.

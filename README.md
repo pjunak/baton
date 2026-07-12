@@ -22,7 +22,7 @@ Like the server, Baton is **generic** — it bakes in *no* connection details. P
 | **Console** — connection status, now-playing, play/pause, skip, **seek**, **master volume**, **shuffle/repeat**, **live queue** (remove/clear) | ✅ Working |
 | **Library** — browse folder tree, debounced search, play track/folder, enqueue | ✅ Working |
 | **Settings** — account + **sign-out**, server + "Open web app", app version | ✅ Working |
-| **Session** — modes, cues, soundboards/SFX, EQ, interrupts | ⏳ Planned |
+| **Session** — modes, cues, soundboard (tap = fire, hold = loop), EQ presets, interrupts | ✅ Working |
 | **Devices + phone-as-speaker** (Media3, media-style notification with server-routed transport) | ✅ Working |
 | **In-app updater** (GitHub Releases → system installer) | ✅ Working |
 | **CI + signed release** (GitHub Actions) | ✅ Working (needs the keystore secrets — see §12) |
