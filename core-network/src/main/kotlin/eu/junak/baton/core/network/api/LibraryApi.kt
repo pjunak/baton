@@ -13,11 +13,15 @@ import retrofit2.http.Query
  */
 interface LibraryApi {
 
-    /** Direct contents of one folder: subfolders + the tracks immediately in it. */
+    /**
+     * The tracks immediately inside one folder (not recursive). The folder
+     * hierarchy itself is NOT in this response — the server hands out the
+     * whole tree once via [folders] and every client builds it locally.
+     */
     @GET("api/library/tree")
     suspend fun tree(@Query("path") path: String = ""): TreeResponse
 
-    /** The whole folder hierarchy in one response (powers a client-side tree). */
+    /** The whole folder hierarchy (any depth) in one response (powers the client-side tree). */
     @GET("api/library/folders")
     suspend fun folders(): FoldersResponse
 
@@ -54,24 +58,28 @@ data class FolderOut(
     val hasChildren: Boolean,
 )
 
+// Response fields the server guarantees carry NO defaults on purpose: if the
+// contract drifts, deserialization throws and the UI shows an error instead of
+// silently rendering an empty library (which is how the /tree folders removal
+// went unnoticed).
+
 @Serializable
 data class TreeResponse(
     val path: String,
-    val folders: List<FolderOut> = emptyList(),
-    val tracks: List<Track> = emptyList(),
+    val tracks: List<Track>,
 )
 
 @Serializable
 data class FoldersResponse(
-    val folders: List<FolderOut> = emptyList(),
+    val folders: List<FolderOut>,
 )
 
 @Serializable
 data class SearchResponse(
-    val tracks: List<Track> = emptyList(),
-    val total: Int = 0,
-    val limit: Int = 0,
-    val offset: Int = 0,
-    val sort: String = "artist",
-    val order: String = "asc",
+    val tracks: List<Track>,
+    val total: Int,
+    val limit: Int,
+    val offset: Int,
+    val sort: String,
+    val order: String,
 )

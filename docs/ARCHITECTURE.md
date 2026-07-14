@@ -176,8 +176,9 @@ relies on a new batch endpoint in `music` (see §11):
 
 - `GET /api/library/tracks?ids=1,2,3` → `list[TrackOut]` — resolve a whole queue/history in one trip.
 
-Browsing uses `GET /api/library/tree?path=`, `GET /api/library/folders` (full hierarchy for the
-client-side tree), and `GET /api/library/search?q=&limit=&offset=&sort=&order=` (paginated).
+Browsing uses `GET /api/library/folders` (the full folder hierarchy in one response — clients
+build and navigate the tree locally), `GET /api/library/tree?path=` (only the tracks directly in
+that folder), and `GET /api/library/search?q=&limit=&offset=&sort=&order=` (paginated).
 Cover art: `GET /api/library/tracks/{id}/cover` via Coil.
 
 ---

@@ -9,6 +9,8 @@ import eu.junak.baton.core.network.MediaUrls
 import eu.junak.baton.core.network.api.FolderOut
 import eu.junak.baton.core.network.api.LibraryApi
 import eu.junak.baton.core.sync.SyncClient
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,9 +21,11 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Read-only library browser. Walks the folder tree (LibraryApi.tree), searches
- * (LibraryApi.search), and starts playback by sending ambient actions through
- * [SyncClient] — the server is the one that actually plays.
+ * Read-only library browser. Per the server contract, the folder hierarchy comes
+ * from LibraryApi.folders as one whole-tree response that clients navigate locally;
+ * LibraryApi.tree only supplies the tracks directly inside the open folder. Search
+ * goes through LibraryApi.search, and playback starts by sending ambient actions
+ * through [SyncClient] — the server is the one that actually plays.
  */
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
@@ -47,6 +51,11 @@ class LibraryViewModel @Inject constructor(
      *  pauses on actually hits the network. */
     private val queryFlow = MutableStateFlow("")
 
+    /** The whole folder hierarchy (any depth) from LibraryApi.folders. Re-fetched on
+     *  every root load — so returning to the top picks up uploads and rescans — and
+     *  reused while browsing deeper, which makes folder navigation one request per step. */
+    private var allFolders: List<FolderOut>? = null
+
     init {
         loadFolder("")
         observeSearch()
@@ -55,13 +64,22 @@ class LibraryViewModel @Inject constructor(
     fun loadFolder(path: String) {
         _ui.update { it.copy(loading = true, error = null, query = "", searchResults = null) }
         viewModelScope.launch {
-            runCatching { libraryApi.tree(path) }
-                .onSuccess { response ->
+            runCatching {
+                coroutineScope {
+                    val tree = async { libraryApi.tree(path) }
+                    val cached = allFolders
+                    val folders =
+                        if (cached != null && path.isNotEmpty()) cached
+                        else libraryApi.folders().folders.also { allFolders = it }
+                    folders to tree.await()
+                }
+            }
+                .onSuccess { (folders, tree) ->
                     _ui.update {
                         it.copy(
-                            path = response.path,
-                            folders = response.folders,
-                            tracks = response.tracks,
+                            path = tree.path,
+                            folders = folders.filter { f -> f.parentPath == tree.path },
+                            tracks = tree.tracks,
                             loading = false,
                         )
                     }
@@ -127,3 +145,7 @@ class LibraryViewModel @Inject constructor(
         const val SEARCH_DEBOUNCE_MS = 300L
     }
 }
+
+/** Parent folder of a library path: "a/b" -> "a", top-level "a" -> "" (the root). */
+private val FolderOut.parentPath: String
+    get() = path.substringBeforeLast('/', "")
