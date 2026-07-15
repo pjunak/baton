@@ -110,7 +110,7 @@ fun ConsoleScreen(viewModel: ConsoleViewModel = hiltViewModel()) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (!ui.connected) {
-                item { ConnectionBanner(ui.status) }
+                item { ConnectionBanner(ui.status, ui.failureDetail) }
             }
 
             item {
@@ -214,7 +214,7 @@ private fun KeepScreenOn() {
 }
 
 @Composable
-private fun ConnectionBanner(status: ConnectionStatus) {
+private fun ConnectionBanner(status: ConnectionStatus, failureDetail: String?) {
     val connecting = status == ConnectionStatus.CONNECTING
     val container = if (connecting) {
         MaterialTheme.colorScheme.secondaryContainer
@@ -227,20 +227,33 @@ private fun ConnectionBanner(status: ConnectionStatus) {
         MaterialTheme.colorScheme.onErrorContainer
     }
     Surface(color = container, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (connecting) {
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = onContainer)
-                Spacer(Modifier.width(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (connecting) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = onContainer)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    text = if (connecting) "Connecting…" else "Disconnected — reconnecting",
+                    color = onContainer,
+                    style = MaterialTheme.typography.labelLarge,
+                )
             }
-            Text(
-                text = if (connecting) "Connecting…" else "Disconnected — reconnecting",
-                color = onContainer,
-                style = MaterialTheme.typography.labelLarge,
-            )
+            // The why, when an outage persists (wrong URL, server down). Transient
+            // failures self-heal and take the whole banner with them.
+            if (!connecting && failureDetail != null) {
+                Text(
+                    text = failureDetail,
+                    color = onContainer,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }

@@ -7,6 +7,7 @@ import dagger.hilt.components.SingletonComponent
 import eu.junak.baton.core.model.ProtocolJson
 import eu.junak.baton.core.network.cookie.SessionCookieJar
 import eu.junak.baton.core.network.interceptor.BaseUrlInterceptor
+import eu.junak.baton.core.network.interceptor.TransientRetryInterceptor
 import kotlinx.serialization.json.Json
 import okhttp3.CookieJar
 import okhttp3.MediaType.Companion.toMediaType
@@ -44,6 +45,7 @@ object NetworkModule {
     fun provideOkHttpClient(
         cookieJar: CookieJar,
         baseUrlInterceptor: BaseUrlInterceptor,
+        transientRetryInterceptor: TransientRetryInterceptor,
     ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             // BASIC: request/response lines only — never headers or bodies, so
@@ -52,6 +54,8 @@ object NetworkModule {
         }
         return OkHttpClient.Builder()
             .cookieJar(cookieJar)
+            // Outermost so each retry re-runs the URL rewrite and gets logged.
+            .addInterceptor(transientRetryInterceptor)
             .addInterceptor(baseUrlInterceptor)
             .addInterceptor(logging)
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)

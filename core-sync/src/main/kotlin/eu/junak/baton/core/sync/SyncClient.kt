@@ -3,6 +3,7 @@ package eu.junak.baton.core.sync
 import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.model.PlayerState
 import eu.junak.baton.core.model.ServerMessage
+import eu.junak.baton.core.network.NetworkMonitor
 import eu.junak.baton.core.network.ServerConfig
 import eu.junak.baton.core.network.data.NetworkStore
 import eu.junak.baton.core.network.url.ServerUrl
@@ -40,14 +41,21 @@ import kotlin.math.pow
  * 3. every `state_changed` replaces local state; `sfx_fired` / `error` are
  *    surfaced as one-shot events
  *
- * Reconnects with exponential backoff. The shared OkHttp client carries the
- * session cookie, so the upgrade is authenticated automatically.
+ * Reconnects with exponential backoff, and immediately when [NetworkMonitor]
+ * reports connectivity is back — no attempt is made while the device has no
+ * validated network (it could only fail; at app open that failure used to
+ * surface as a spurious "Unable to resolve host" toast). Transport failures
+ * are represented by [status] (the Console banner) plus [lastFailure], never
+ * by [errors] — that flow carries only server-reported protocol errors. The
+ * shared OkHttp client carries the session cookie, so the upgrade is
+ * authenticated automatically.
  */
 @Singleton
 class SyncClient @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val serverConfig: ServerConfig,
     private val networkStore: NetworkStore,
+    private val networkMonitor: NetworkMonitor,
     private val json: Json,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -67,8 +75,17 @@ class SyncClient @Inject constructor(
 
     private val _errors = MutableSharedFlow<String>(extraBufferCapacity = EVENT_BUFFER)
 
-    /** Server-reported error frames (e.g. a rejected action), for toasts. */
+    /** Server-reported error frames (e.g. a rejected action), for toasts.
+     *  Transport failures do NOT pass through here — see [lastFailure]. */
     val errors: SharedFlow<String> = _errors.asSharedFlow()
+
+    private val _lastFailure = MutableStateFlow<String?>(null)
+
+    /** Why the last connection attempt failed (null once connected or after a
+     *  fresh connect/disconnect). Persistent-failure diagnostic for the
+     *  Console's disconnected banner — a wrong URL or a down server stays
+     *  explained without toasting every self-healing reconnect attempt. */
+    val lastFailure: StateFlow<String?> = _lastFailure.asStateFlow()
 
     private val _sessionExpired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -82,7 +99,9 @@ class SyncClient @Inject constructor(
 
     @Volatile private var webSocket: WebSocket? = null
 
-    @Volatile private var manuallyClosed = false
+    /** True between [connect] and [disconnect]: the app wants a live socket,
+     *  so reconnect machinery (backoff, network-regain) may act. */
+    @Volatile private var wantConnected = false
 
     @Volatile private var deviceName: String = "Baton"
 
@@ -90,11 +109,25 @@ class SyncClient @Inject constructor(
 
     private var reconnectJob: Job? = null
 
+    init {
+        // The moment a validated network (re)appears, connect NOW instead of
+        // sleeping out whatever backoff accumulated while offline. This is
+        // what makes app-open and Wi-Fi->cell handovers feel instant.
+        scope.launch {
+            networkMonitor.online.collect { online ->
+                if (online && wantConnected && _status.value != ConnectionStatus.CONNECTED) {
+                    reconnectNow()
+                }
+            }
+        }
+    }
+
     /** Open the socket and keep it alive (reconnecting) until [disconnect]. */
     @Synchronized
     fun connect(deviceName: String) {
         this.deviceName = deviceName
-        manuallyClosed = false
+        wantConnected = true
+        _lastFailure.value = null
         reconnectAttempts = 0
         reconnectJob?.cancel()
         openSocket()
@@ -102,7 +135,8 @@ class SyncClient @Inject constructor(
 
     @Synchronized
     fun disconnect() {
-        manuallyClosed = true
+        wantConnected = false
+        _lastFailure.value = null
         reconnectJob?.cancel()
         reconnectJob = null
         webSocket?.close(NORMAL_CLOSURE, null)
@@ -128,20 +162,38 @@ class SyncClient @Inject constructor(
         // stale state into _state and its eventual close schedules a rogue
         // reconnect. Its late callbacks are ignored via the identity guard.
         webSocket?.cancel()
+        webSocket = null
         _status.value = ConnectionStatus.CONNECTING
+        if (!networkMonitor.online.value) {
+            // No validated network: an attempt now can only fail (the spurious
+            // "Unable to resolve host" at app open). Stay in CONNECTING; the
+            // network-regain collector fires the real attempt the moment the
+            // network is up, with the backoff loop kept as a safety net.
+            scheduleReconnect()
+            return
+        }
         val request = Request.Builder().url(ServerUrl.wsUrl(base)).build()
         webSocket = okHttpClient.newWebSocket(request, Listener())
     }
 
     private fun scheduleReconnect() {
-        if (manuallyClosed) return
+        if (!wantConnected) return
         reconnectJob?.cancel()
         val backoff = (BASE_BACKOFF_MS * 2.0.pow(reconnectAttempts)).toLong()
         reconnectAttempts++
         reconnectJob = scope.launch {
             delay(min(MAX_BACKOFF_MS, backoff))
-            if (!manuallyClosed) openSocket()
+            if (wantConnected) openSocket()
         }
+    }
+
+    /** Skip any pending backoff and try again right away (network just came back). */
+    @Synchronized
+    private fun reconnectNow() {
+        if (!wantConnected) return
+        reconnectAttempts = 0
+        reconnectJob?.cancel()
+        openSocket()
     }
 
     /** True iff [socket] is still the one this client owns — a superseded
@@ -156,6 +208,7 @@ class SyncClient @Inject constructor(
                 return
             }
             reconnectAttempts = 0
+            _lastFailure.value = null
             // Identify ourselves so the operator can designate this device an
             // output. Sent BEFORE the status flips so anything reacting to
             // CONNECTED (e.g. re-asserting the output designation) enqueues
@@ -209,7 +262,11 @@ class SyncClient @Inject constructor(
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             if (!isCurrent(webSocket)) return
             _status.value = ConnectionStatus.DISCONNECTED
-            _errors.tryEmit(t.message ?: "Connection lost")
+            // Transport failures are NOT toasted (reconnect is automatic, and at
+            // app open a DNS race would spam "Unable to resolve host" for a
+            // connection that heals itself a second later). The banner shows the
+            // status; lastFailure gives it the why if the outage persists.
+            _lastFailure.value = t.message ?: "Connection lost"
             scheduleReconnect()
         }
     }

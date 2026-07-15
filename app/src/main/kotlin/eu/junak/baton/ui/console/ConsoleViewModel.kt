@@ -50,6 +50,8 @@ class ConsoleViewModel @Inject constructor(
 
     data class UiState(
         val status: ConnectionStatus = ConnectionStatus.DISCONNECTED,
+        /** Why the last connection attempt failed — banner detail while disconnected. */
+        val failureDetail: String? = null,
         val connected: Boolean = false,
         val playingHere: Boolean = false,
         val isPlaying: Boolean = false,
@@ -91,6 +93,7 @@ class ConsoleViewModel @Inject constructor(
             )
         }
             .combine(playbackController.enabled) { ui, playingHere -> ui.copy(playingHere = playingHere) }
+            .combine(syncClient.lastFailure) { ui, failure -> ui.copy(failureDetail = failure) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), UiState())
 
     init {
