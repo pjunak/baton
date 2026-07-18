@@ -258,9 +258,8 @@ class PlaybackService : Service() {
             return
         }
 
-        // Volume: master × this device's trim. Applied on every emission (instant, never glitches).
-        val trim = (state.deviceVolumes[playbackController.deviceId] ?: 1.0).toFloat()
-        player.volume = (state.volume.toFloat() * trim).coerceIn(0f, 1f)
+        val outputVolume = outputVolume(state)
+        player.volume = outputVolume.toFloat().coerceIn(0f, 1f)
 
         val interrupt = state.interrupt
         val trackId = interrupt?.currentTrackId ?: state.ambient.currentTrackId
@@ -310,15 +309,15 @@ class PlaybackService : Service() {
 
     /**
      * Play one broadcast SFX as a transient [MediaPlayer] layered over the music — only while this
-     * phone is a live output. Volume is the fire volume × master × this device's trim (matching the
-     * web client). Each player frees itself on completion/error, so overlapping SFX simply stack.
+     * phone is a live output. Volume is the event level × this device's canonical server volume.
+     * Each player frees itself on completion/error, so overlapping SFX simply stack.
      */
     private fun fireSfx(event: ServerMessage.SfxFired) {
         if (!playbackController.enabled.value) return
         val state = syncClient.state.value ?: return
         val url = mediaUrls.sfx(event.itemPath) ?: return
-        val trim = (state.deviceVolumes[playbackController.deviceId] ?: 1.0).toFloat()
-        val vol = (event.volume.toFloat() * state.volume.toFloat() * trim).coerceIn(0f, 1f)
+        val outputVolume = outputVolume(state)
+        val vol = (event.volume.toFloat() * outputVolume.toFloat()).coerceIn(0f, 1f)
 
         val mp = MediaPlayer()
         mp.setAudioAttributes(
@@ -339,6 +338,16 @@ class PlaybackService : Service() {
             mp.setDataSource(url)
             mp.prepareAsync()
         }.onFailure { releaseSfx(mp) }
+    }
+
+    /** New servers expose absolute device levels; old ones expose master × trim. */
+    private fun outputVolume(state: PlayerState): Double {
+        val defaultVolume = state.defaultDeviceVolume
+        return if (defaultVolume != null) {
+            state.deviceVolumes[playbackController.deviceId] ?: defaultVolume
+        } else {
+            state.volume * (state.deviceVolumes[playbackController.deviceId] ?: 1.0)
+        }
     }
 
     private fun releaseSfx(mp: MediaPlayer) {

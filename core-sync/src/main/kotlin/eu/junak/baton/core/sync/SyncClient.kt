@@ -30,6 +30,46 @@ import javax.inject.Singleton
 import kotlin.math.min
 import kotlin.math.pow
 
+internal fun shouldAcceptStateChange(current: PlayerState?, incoming: PlayerState): Boolean =
+    current == null || incoming.revision >= current.revision
+
+internal fun deviceVolumeActions(
+    state: PlayerState?,
+    deviceId: String,
+    requestedVolume: Double,
+): List<Action> {
+    val requested = requestedVolume.coerceIn(0.0, 1.0)
+    val master = state?.volume ?: 1.0
+    if (state?.defaultDeviceVolume == null && requested > master) {
+        val knownIds = linkedSetOf(deviceId).apply {
+            addAll(state?.deviceVolumes?.keys.orEmpty())
+            addAll(state?.connectedDevices.orEmpty().map { it.deviceId })
+        }
+        val previousLevels = knownIds.associateWith { id ->
+            master * (state?.deviceVolumes?.get(id) ?: 1.0)
+        }
+        return buildList {
+            add(Action.SetVolume(requested))
+            knownIds.forEach { id ->
+                add(
+                    Action.SetDeviceVolume(
+                        id,
+                        if (id == deviceId) 1.0
+                        else ((previousLevels[id] ?: 0.0) / requested).coerceAtMost(1.0),
+                    ),
+                )
+            }
+        }
+    }
+    val wireVolume = if (state?.defaultDeviceVolume == null) {
+        if (master > 0.0) (requested / master).coerceAtMost(1.0)
+        else if (requested == 0.0) 0.0 else 1.0
+    } else {
+        requested
+    }
+    return listOf(Action.SetDeviceVolume(deviceId, wireVolume))
+}
+
 /**
  * Owns the WebSocket to the server and exposes the canonical [PlayerState] as a
  * [StateFlow] the rest of the app reconciles to. Mirrors the protocol in the
@@ -150,6 +190,10 @@ class SyncClient @Inject constructor(
         return socket.send(json.encodeToString(Action.serializer(), action))
     }
 
+    fun setDeviceVolume(deviceId: String, volume: Double) {
+        deviceVolumeActions(_state.value, deviceId, volume).forEach(::send)
+    }
+
     @Synchronized
     private fun openSocket() {
         val base = serverConfig.baseUrlOrNull()
@@ -202,6 +246,8 @@ class SyncClient @Inject constructor(
     private fun isCurrent(socket: WebSocket): Boolean = socket === webSocket
 
     private inner class Listener : WebSocketListener() {
+        private var hasStateThisConnection = false
+
         override fun onOpen(webSocket: WebSocket, response: Response) {
             if (!isCurrent(webSocket)) {
                 webSocket.cancel()
@@ -231,8 +277,8 @@ class SyncClient @Inject constructor(
                 return
             }
             when (message) {
-                is ServerMessage.StateSnapshot -> _state.value = message.state
-                is ServerMessage.StateChanged -> _state.value = message.state
+                is ServerMessage.StateSnapshot -> acceptState(message.state)
+                is ServerMessage.StateChanged -> acceptState(message.state)
                 is ServerMessage.SfxFired -> _sfxEvents.tryEmit(message)
                 is ServerMessage.Error -> {
                     if (message.code == "session_expired" ||
@@ -246,6 +292,13 @@ class SyncClient @Inject constructor(
                     }
                     _errors.tryEmit(message.detail)
                 }
+            }
+        }
+
+        private fun acceptState(incoming: PlayerState) {
+            if (!hasStateThisConnection || shouldAcceptStateChange(_state.value, incoming)) {
+                _state.value = incoming
+                hasStateThisConnection = true
             }
         }
 

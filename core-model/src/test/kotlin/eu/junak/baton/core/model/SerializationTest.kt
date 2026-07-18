@@ -36,6 +36,12 @@ class SerializationTest {
     }
 
     @Test
+    fun `register advertises absolute volume protocol`() {
+        val json = ProtocolJson.encodeToString<Action>(Action.Register("Phone", "phone-1"))
+        assertTrue(json, json.contains("\"protocol_version\":2"))
+    }
+
+    @Test
     fun `nullable required field is written as null`() {
         // set_active_mode.mode_id is nullable-but-required: null means "clear".
         assertEquals(
@@ -48,7 +54,9 @@ class SerializationTest {
     fun `state_changed decodes into PlayerState`() {
         val payload = """
             {"type":"state_changed","state":{
-              "is_playing":true,"volume":0.5,
+              "revision":5,"is_playing":true,"volume":1.0,
+              "default_device_volume":0.7,"device_volumes":{"tv-1":0.4},
+              "connected_devices":[{"device_id":"tv-1","client_id":"tv-1","name":"TV","is_output":true}],
               "ambient":{"current_track_id":7,"queue":[7,8,9],"position_ms":1234,"loop":"follow"},
               "interrupt":null
             }}
@@ -57,12 +65,24 @@ class SerializationTest {
         assertTrue(msg is ServerMessage.StateChanged)
         val state = (msg as ServerMessage.StateChanged).state
         assertEquals(true, state.isPlaying)
-        assertEquals(0.5, state.volume, 0.0)
+        assertEquals(1.0, state.volume, 0.0)
+        assertEquals(0.7, state.defaultDeviceVolume ?: -1.0, 0.0)
+        assertEquals(0.4, state.deviceVolumes["tv-1"] ?: -1.0, 0.0)
+        assertEquals("TV", state.connectedDevices.single().name)
         assertEquals(7, state.ambient.currentTrackId)
         assertEquals(listOf(7, 8, 9), state.ambient.queue)
         assertEquals(1234, state.ambient.positionMs)
         assertEquals(LoopMode.FOLLOW, state.ambient.loop)
         assertNull(state.interrupt)
+    }
+
+    @Test
+    fun `missing absolute-volume marker identifies legacy server state`() {
+        val payload =
+            """{"type":"state_snapshot","state":{"volume":0.4,"device_volumes":{"tv-1":0.5}}}"""
+        val msg = ProtocolJson.decodeFromString<ServerMessage>(payload)
+        assertTrue(msg is ServerMessage.StateSnapshot)
+        assertNull((msg as ServerMessage.StateSnapshot).state.defaultDeviceVolume)
     }
 
     @Test

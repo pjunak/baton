@@ -17,10 +17,15 @@ sealed interface Action {
 
     @Serializable
     @SerialName("register")
-    data class Register(val name: String, val clientId: String) : Action
+    data class Register(
+        val name: String,
+        val clientId: String,
+        val protocolVersion: Int = 2,
+    ) : Action
 
     @Serializable
     @SerialName("set_volume")
+    /** Legacy group-volume action. New clients use [SetDeviceVolume]. */
     data class SetVolume(val volume: Double) : Action
 
     @Serializable

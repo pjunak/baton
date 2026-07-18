@@ -42,6 +42,7 @@ class DevicesViewModel @Inject constructor(
         combine(syncClient.state, syncClient.status, playbackController.enabled) { state, status, localEnabled ->
             val active = state?.activeOutputDeviceIds.orEmpty().toSet()
             val volumes = state?.deviceVolumes.orEmpty()
+            val defaultVolume = state?.defaultDeviceVolume
             val myId = playbackController.deviceId
             val devices = state?.connectedDevices.orEmpty().map { device ->
                 val isThisDevice = device.deviceId == myId
@@ -50,7 +51,11 @@ class DevicesViewModel @Inject constructor(
                     name = device.name,
                     isThisDevice = isThisDevice,
                     isActiveOutput = device.deviceId in active || (isThisDevice && localEnabled),
-                    volume = (volumes[device.deviceId] ?: 1.0).toFloat(),
+                    volume = if (defaultVolume == null) {
+                        ((state?.volume ?: 1.0) * (volumes[device.deviceId] ?: 1.0)).toFloat()
+                    } else {
+                        (volumes[device.deviceId] ?: defaultVolume).toFloat()
+                    },
                 )
             }
             UiState(devices = devices, connected = status == ConnectionStatus.CONNECTED)
@@ -67,7 +72,7 @@ class DevicesViewModel @Inject constructor(
     }
 
     fun setDeviceVolume(deviceId: String, volume: Float) {
-        syncClient.send(Action.SetDeviceVolume(deviceId, volume.toDouble().coerceIn(0.0, 1.0)))
+        syncClient.setDeviceVolume(deviceId, volume.toDouble())
     }
 
     private companion object {

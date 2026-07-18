@@ -45,7 +45,7 @@ This mirrors the backend's own "server-as-reducer" design almost 1:1.
 ## 2. Scope
 
 ### v1 — in
-- **Controller / console:** transport (play/pause/skip/seek), master volume, loop & shuffle, the
+- **Controller / console:** transport (play/pause/skip/seek), loop & shuffle, the
   live queue (view/reorder/remove), now-playing.
 - **Library browse & play:** tree/folders/search; play a track, folder, or playlist; enqueue.
 - **Session surface (consume, don't author):** switch active **mode**, fire **cues**, fire/loop
@@ -201,12 +201,12 @@ device is "on" (in `active_output_device_ids`, or a local override the user cont
 ## 9. Screens
 
 1. **Setup** — server URL → credentials (§5).
-2. **Console (home)** — now-playing, transport, seek, master volume, loop/shuffle, live queue.
+2. **Console (home)** — now-playing, transport, seek, loop/shuffle, live queue.
    (Cover art + a "playing from" source label are planned — see [DESIGN-NOTES](DESIGN-NOTES.md).)
 3. **Library** — browse tree/folders + search; play/enqueue track, play folder/playlist. Read-only.
 4. **Session** — active mode picker, cues, soundboards (fire/loop SFX), EQ presets, interrupts.
-5. **Devices** — connected outputs, toggle active, per-device trim, toggle *this phone* as a speaker
-   (local on/off + local volume).
+5. **Devices** — connected outputs, toggle active, server-owned absolute volume per device,
+   toggle *this phone* as a speaker.
 6. **Settings** — account + **sign-out**, server URL + **Open web app**, app version, and the
    in-app updater (check / download / install, plus a silent launch check that badges the tab).
    Change-server, active sessions, this-device name, and speaker prefs are planned.
