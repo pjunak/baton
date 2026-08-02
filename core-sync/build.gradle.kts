@@ -3,7 +3,6 @@
 // the app observes. Sends typed Actions. Uses core-network's shared client.
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)

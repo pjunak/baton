@@ -97,19 +97,19 @@ on-phone authoring need.
 
 ---
 
-## ADR-0007 — Current toolchain, with the Hilt × AGP-9 `newDsl` constraint
+## ADR-0007 — Current toolchain with AGP built-in Kotlin
 
 **Context.** The app targets a deliberately current stack (AGP 9.3 / Gradle 9.6 / Kotlin 2.4 /
 Hilt 2.60).
 
-**Decision.** Keep `android.newDsl=false` and `android.builtInKotlin=false` in `gradle.properties`.
-The Hilt Gradle plugin is incompatible with AGP 9's new DSL (sync fails: `ApplicationExtensionImpl
-cannot be cast to BaseExtension`); `newDsl=false` is Google's own recommended workaround.
+**Decision.** Use AGP's built-in Kotlin support and modern DSL defaults. Android modules do not
+apply the deprecated `org.jetbrains.kotlin.android` plugin; the pure JVM `core-model` module keeps
+the standard Kotlin JVM plugin. Current Hilt and KSP versions work with this configuration.
 
-**Consequences.** A handful of obsolete-variant-API deprecation warnings are expected and harmless
-(`org.gradle.warning.mode=summary`). They clear when Hilt supports the new DSL (forced by AGP 10,
-~late 2026). **Build with Run ▶ / `assembleDebug`, never "Make Project"** — AGP 9 dropped the
-`androidTestClasses` anchor that Make requests. Status: **accepted-with-constraint; revisit at AGP 10.**
+**Consequences.** The temporary `android.newDsl=false`, `android.builtInKotlin=false`, unique-package,
+and legacy R8 opt-outs are gone, avoiding an AGP 10 migration blocker. **Build with Run ▶ /
+`assembleDebug`, never "Make Project"** — AGP 9 dropped the `androidTestClasses` anchor that Make
+requests. Status: **accepted.**
 
 ---
 

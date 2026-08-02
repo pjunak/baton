@@ -5,7 +5,6 @@
 // local mirror). Active only when this device is a designated output.
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
