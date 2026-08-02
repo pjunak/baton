@@ -99,8 +99,8 @@ on-phone authoring need.
 
 ## ADR-0007 — Current toolchain, with the Hilt × AGP-9 `newDsl` constraint
 
-**Context.** The app targets a deliberately current stack (AGP 9.2 / Gradle 9.4 / Kotlin 2.2 /
-Hilt 2.57).
+**Context.** The app targets a deliberately current stack (AGP 9.3 / Gradle 9.6 / Kotlin 2.4 /
+Hilt 2.60).
 
 **Decision.** Keep `android.newDsl=false` and `android.builtInKotlin=false` in `gradle.properties`.
 The Hilt Gradle plugin is incompatible with AGP 9's new DSL (sync fails: `ApplicationExtensionImpl

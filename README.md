@@ -39,7 +39,7 @@ Like the server, Baton is **generic** — it bakes in *no* connection details. P
 
 ## Build & run
 
-This project runs on a deliberately current toolchain (AGP 9 / Gradle 9 / Kotlin 2.2). Two
+This project runs on a deliberately current toolchain (AGP 9 / Gradle 9 / Kotlin 2.4). Two
 build-workflow caveats are load-bearing:
 
 1. **Build with Run ▶, "Build → Build APK(s)", or `:app:assembleDebug` — *not* "Make Project"
@@ -96,9 +96,9 @@ UI backlog: **[docs/DESIGN-NOTES.md](docs/DESIGN-NOTES.md)**
 
 ## Tech stack
 
-Kotlin 2.2 · Jetpack Compose (Material 3, dynamic color) · Hilt · Coroutines/Flow (MVVM) ·
-OkHttp + Retrofit · kotlinx.serialization · Coil 3 · Media3 · AGP 9.2 / Gradle 9.4 ·
-version catalog (`gradle/libs.versions.toml`) · minSdk 33 / compile+target 35.
+Kotlin 2.4 · Jetpack Compose (Material 3, dynamic color) · Hilt · Coroutines/Flow (MVVM) ·
+OkHttp + Retrofit · kotlinx.serialization · Coil 3 · Media3 · AGP 9.3 / Gradle 9.6 ·
+version catalog (`gradle/libs.versions.toml`) · minSdk 33 / compileSdk 37 / targetSdk 35.
 
 ## Distribution
 

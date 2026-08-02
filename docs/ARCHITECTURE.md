@@ -86,7 +86,7 @@ This mirrors the backend's own "server-as-reducer" design almost 1:1.
 | Storage | SharedPreferences (`NetworkStore`) + Android Keystore-encrypted session/cookie (`SecureStore`). DataStore was deferred — the cookie jar needs synchronous reads. Room only if/when offline caching is added |
 | Navigation | Navigation Compose (type-safe routes) |
 | Updater | GitHub Releases API + OkHttp download + system installer (FileProvider + `ACTION_VIEW`) |
-| Build | Gradle Kotlin DSL + version catalog. AGP 9.2.1 / Gradle 9.4 / Kotlin 2.2.10 / Hilt 2.57.2; `newDsl=false` (Hilt × AGP-9 constraint — see [DECISIONS](DECISIONS.md) ADR-0007) |
+| Build | Gradle Kotlin DSL + version catalog. AGP 9.3.1 / Gradle 9.6.1 / Kotlin 2.4.10 / Hilt 2.60.1; `newDsl=false` (Hilt × AGP-9 constraint — see [DECISIONS](DECISIONS.md) ADR-0007) |
 | CI | GitHub Actions (`ci.yml` + `release.yml`) |
 | Quality | JUnit + Turbine unit tests (built). Spotless/detekt + Compose UI tests **deferred** past the AGP 9 upgrade (see §12) |
 | SDK | minSdk 33 (Android 13); compile/target 35 (Android 15) — 36-ready once AGP supports it |
