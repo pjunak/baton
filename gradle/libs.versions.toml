@@ -2,10 +2,9 @@
 # Android SDK levels — single source of truth, referenced by every module.
 compileSdk = "37"
 minSdk = "33"
-targetSdk = "35"
-# NOTE: "newer Android" floor is minSdk 33. compileSdk tracks the current
-# libraries; targetSdk stays at 35 until Android 16/17 behavior changes receive
-# device-level verification.
+targetSdk = "37"
+# NOTE: "newer Android" floor is minSdk 33. compileSdk and targetSdk track the
+# current platform; API 37's LAN permission is handled at runtime.
 
 # Build tooling
 agp = "9.3.1"

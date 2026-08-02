@@ -89,7 +89,7 @@ This mirrors the backend's own "server-as-reducer" design almost 1:1.
 | Build | Gradle Kotlin DSL + version catalog. AGP 9.3.1 / Gradle 9.6.1 / Kotlin 2.4.10 / Hilt 2.60.1; `newDsl=false` (Hilt × AGP-9 constraint — see [DECISIONS](DECISIONS.md) ADR-0007) |
 | CI | GitHub Actions (`ci.yml` + `release.yml`) |
 | Quality | JUnit + Turbine unit tests (built). Spotless/detekt + Compose UI tests **deferred** past the AGP 9 upgrade (see §12) |
-| SDK | minSdk 33 (Android 13); compile/target 35 (Android 15) — 36-ready once AGP supports it |
+| SDK | minSdk 33 (Android 13); compile/target 37 (Android 17) |
 | appId | `eu.junak.baton` (debug builds use a `.debug` suffix) |
 
 ---
@@ -257,7 +257,8 @@ GET /api/library/tracks?ids=1,2,3  →  list[TrackOut]
   Release with generated notes.
 - **Secrets:** `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. (Local equivalents
   are git-ignored.) Keep one **upload key** forever for a clean future Play migration (Play App Signing).
-- **Manifest permissions:** `INTERNET`, `ACCESS_NETWORK_STATE`, `POST_NOTIFICATIONS`,
+- **Manifest permissions:** `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_LOCAL_NETWORK` (runtime on
+  Android 17+), `POST_NOTIFICATIONS`,
   `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `WAKE_LOCK`, `REQUEST_INSTALL_PACKAGES`.
 
 ---

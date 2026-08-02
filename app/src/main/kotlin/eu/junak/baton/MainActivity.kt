@@ -21,14 +21,15 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var updater: Updater
 
-    // Notifications back the phone-as-speaker foreground service; request once (Android 13+).
-    private val requestNotifications =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* best-effort */ }
+    private val requestRuntimePermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            /* best-effort: denied features report their normal connection/notification errors */
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        maybeRequestNotificationPermission()
+        maybeRequestRuntimePermissions()
         // Silent launch-time update check: on a newer release it lights the
         // Settings-tab badge; otherwise it stays invisible (see checkOnLaunch).
         updater.checkOnLaunch()
@@ -39,12 +40,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun maybeRequestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+    private fun maybeRequestRuntimePermissions() {
+        val missing = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(
+                    this@MainActivity,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+
+            // Android 17 (API 37) blocks direct LAN sockets by default for apps
+            // targeting 37. Baton needs broad access for user-entered server URLs.
+            if (Build.VERSION.SDK_INT >= 37 &&
+                ContextCompat.checkSelfPermission(
+                    this@MainActivity,
+                    Manifest.permission.ACCESS_LOCAL_NETWORK,
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+            }
+        }
+
+        if (missing.isNotEmpty()) {
+            requestRuntimePermissions.launch(missing.toTypedArray())
         }
     }
 }

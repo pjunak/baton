@@ -98,7 +98,7 @@ UI backlog: **[docs/DESIGN-NOTES.md](docs/DESIGN-NOTES.md)**
 
 Kotlin 2.4 · Jetpack Compose (Material 3, dynamic color) · Hilt · Coroutines/Flow (MVVM) ·
 OkHttp + Retrofit · kotlinx.serialization · Coil 3 · Media3 · AGP 9.3 / Gradle 9.6 ·
-version catalog (`gradle/libs.versions.toml`) · minSdk 33 / compileSdk 37 / targetSdk 35.
+version catalog (`gradle/libs.versions.toml`) · minSdk 33 / compile+target SDK 37.
 
 ## Distribution
 

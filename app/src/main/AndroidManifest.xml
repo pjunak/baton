@@ -3,6 +3,8 @@
 
     <!--
       INTERNET + network-state: always required (network client).
+      ACCESS_LOCAL_NETWORK: runtime-gated on Android 17+ because Baton connects
+      directly to user-configured self-hosted servers, including LAN addresses.
       POST_NOTIFICATIONS: for the media-playback notification (speaker role,
       wired with the playback service). FOREGROUND_SERVICE* / WAKE_LOCK /
       REQUEST_INSTALL_PACKAGES arrive with the service and the in-app updater
@@ -10,6 +12,7 @@
     -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
