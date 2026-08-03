@@ -164,8 +164,11 @@ Mutations are sent as typed `Action`s (`send(action)`), e.g. `pause`, `resume`, 
 `fire_cue`, `fire_sfx`, `start_loop`/`stop_loop`, `fire_interrupt_*`, `cancel_interrupt`,
 `set_active_outputs`, `set_device_volume`. (Full set: `protocol.py`.)
 
-Lifetime: in the **media service** when acting as a speaker (survives backgrounding); otherwise an
-app/ViewModel-scoped holder while the UI is foreground.
+Lifetime: a small app-level coordinator keeps the socket connected while either the main UI is
+started or the **media service** is acting as a speaker. Controller-only backgrounding disconnects
+after a short grace period; speaker playback remains connected with the screen off. The speaker
+gate is independent of Android's current audio route, so phone, wired, and Bluetooth output all
+retain the same background behavior.
 
 ---
 
@@ -207,8 +210,9 @@ device is "on" (in `active_output_device_ids`, or a local override the user cont
 4. **Session** — active mode picker, cues, soundboards (fire/loop SFX), EQ presets, interrupts.
 5. **Devices** — connected outputs, toggle active, server-owned absolute volume per device,
    toggle *this phone* as a speaker.
-6. **Settings** — account + **sign-out**, server URL + **Open web app**, app version, and the
-   in-app updater (check / download / install, plus a silent launch check that badges the tab).
+6. **Settings** — General / Playback / Updates subtabs: account + **sign-out**, server URL +
+   **Open web app**, an opt-in **Keep Console awake** preference, app version, and the in-app
+   updater (check / download / install, plus a silent launch check that badges the tab).
    Change-server, active sessions, this-device name, and speaker prefs are planned.
 
 ---

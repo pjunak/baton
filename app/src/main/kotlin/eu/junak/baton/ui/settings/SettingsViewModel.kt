@@ -9,6 +9,7 @@ import eu.junak.baton.core.sync.SyncClient
 import eu.junak.baton.feature.playback.PlaybackController
 import eu.junak.baton.feature.update.UpdateState
 import eu.junak.baton.feature.update.Updater
+import eu.junak.baton.settings.AppPreferences
 import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,15 +31,22 @@ class SettingsViewModel @Inject constructor(
     private val syncClient: SyncClient,
     private val updater: Updater,
     private val playbackController: PlaybackController,
+    private val appPreferences: AppPreferences,
 ) : ViewModel() {
 
     data class UiState(
         val serverUrl: String? = null,
         val username: String? = null,
+        val keepConsoleAwake: Boolean = false,
         val signingOut: Boolean = false,
     )
 
-    private val _ui = MutableStateFlow(UiState(serverUrl = serverConfig.baseUrlOrNull()?.toString()))
+    private val _ui = MutableStateFlow(
+        UiState(
+            serverUrl = serverConfig.baseUrlOrNull()?.toString(),
+            keepConsoleAwake = appPreferences.keepConsoleAwake.value,
+        ),
+    )
     val ui: StateFlow<UiState> = _ui.asStateFlow()
 
     /** In-app updater state + actions, delegated to the app-scoped [Updater]. */
@@ -50,10 +58,17 @@ class SettingsViewModel @Inject constructor(
 
     fun installUpdate(apk: File) = updater.install(apk)
 
+    fun setKeepConsoleAwake(enabled: Boolean) = appPreferences.setKeepConsoleAwake(enabled)
+
     init {
         viewModelScope.launch {
             val user = authRepository.currentUser()
             _ui.update { it.copy(username = user?.username) }
+        }
+        viewModelScope.launch {
+            appPreferences.keepConsoleAwake.collect { keepAwake ->
+                _ui.update { it.copy(keepConsoleAwake = keepAwake) }
+            }
         }
     }
 

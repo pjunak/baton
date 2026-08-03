@@ -1,3 +1,34 @@
 <resources>
     <string name="app_name">Baton</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_subtitle">Connection, playback, and app maintenance</string>
+    <string name="settings_tab_general">General</string>
+    <string name="settings_tab_playback">Playback</string>
+    <string name="settings_tab_updates">Updates</string>
+    <string name="settings_section_account">Account</string>
+    <string name="settings_signed_in">Signed in</string>
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_section_server">Server</string>
+    <string name="settings_server_not_configured">Not configured</string>
+    <string name="settings_connected_server">Connected server</string>
+    <string name="settings_open_web_app">Open web app for authoring</string>
+    <string name="settings_section_console">Console</string>
+    <string name="settings_keep_console_awake">Keep Console awake</string>
+    <string name="settings_keep_console_awake_summary">Prevents screen sleep while the Console tab is open. Uses more battery.</string>
+    <string name="settings_section_background_audio">Background audio</string>
+    <string name="settings_background_audio_title">Stay connected while playing</string>
+    <string name="settings_background_audio_summary">When this phone is an output, Baton keeps playback connected with the screen off, including through Bluetooth headphones or speakers.</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_version">Baton %1$s</string>
+    <string name="settings_update_source">Checks GitHub for a newer release</string>
+    <string name="settings_check_updates">Check for updates</string>
+    <string name="settings_checking_updates">Checking…</string>
+    <string name="settings_up_to_date">You’re on the latest version.</string>
+    <string name="settings_check_again">Check again</string>
+    <string name="settings_update_available">Update available — v%1$s</string>
+    <string name="settings_download_install">Download &amp; install</string>
+    <string name="settings_downloading">Downloading… %1$d%%</string>
+    <string name="settings_downloaded">Downloaded v%1$s.</string>
+    <string name="settings_install">Install</string>
+    <string name="settings_try_again">Try again</string>
 </resources>

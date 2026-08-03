@@ -1,6 +1,5 @@
 package eu.junak.baton.ui.console
 
-import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,17 +13,25 @@ import eu.junak.baton.core.network.api.LibraryApi
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
 import eu.junak.baton.feature.playback.PlaybackController
+import eu.junak.baton.settings.AppPreferences
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.time.TimeSource
 
 /**
  * The console: reconciles to the server's live [eu.junak.baton.core.model.PlayerState]
@@ -38,11 +45,13 @@ import javax.inject.Inject
  * without flooding the socket with position queries.
  */
 @HiltViewModel
+@OptIn(ExperimentalCoroutinesApi::class)
 class ConsoleViewModel @Inject constructor(
     private val syncClient: SyncClient,
     private val libraryApi: LibraryApi,
     private val mediaUrls: MediaUrls,
     private val playbackController: PlaybackController,
+    private val appPreferences: AppPreferences,
 ) : ViewModel() {
 
     /** One queue slot: the server's track id plus its resolved metadata (null if unknown/deleted). */
@@ -54,6 +63,7 @@ class ConsoleViewModel @Inject constructor(
         val failureDetail: String? = null,
         val connected: Boolean = false,
         val playingHere: Boolean = false,
+        val keepConsoleAwake: Boolean = false,
         val isPlaying: Boolean = false,
         val nowPlaying: Track? = null,
         val coverUrl: String? = null,
@@ -71,13 +81,57 @@ class ConsoleViewModel @Inject constructor(
     /** Dead-reckoned position: snapped to the server on each report, ticked locally between. */
     private val position = MutableStateFlow(0)
 
+    private data class PositionClock(
+        val baseMs: Int,
+        val playing: Boolean,
+        val durationMs: Int,
+    )
+
+    /**
+     * The clock exists only while [uiState] has a lifecycle-active collector. Paused playback is
+     * a single value rather than a sleeping loop, and monotonic elapsed time keeps the display
+     * accurate if Android delays a tick. `stateIn(WhileSubscribed)` below tears the flow down when
+     * the Console leaves composition or the activity stops.
+     */
+    private val displayedPosition: Flow<Int> =
+        combine(
+            position,
+            syncClient.state.map(::activePlaying).distinctUntilChanged(),
+            nowPlaying,
+        ) { baseMs, playing, track ->
+            PositionClock(
+                baseMs = baseMs,
+                playing = playing,
+                durationMs = ((track?.lengthS ?: 0.0) * 1000).toInt(),
+            )
+        }
+            .distinctUntilChanged()
+            .flatMapLatest { clock ->
+                if (!clock.playing || clock.durationMs <= 0) {
+                    flowOf(
+                        if (clock.durationMs > 0) clock.baseMs.coerceAtMost(clock.durationMs)
+                        else clock.baseMs.coerceAtLeast(0),
+                    )
+                } else {
+                    flow {
+                        val startedAt = TimeSource.Monotonic.markNow()
+                        emit(clock.baseMs.coerceAtMost(clock.durationMs))
+                        while (currentCoroutineContext().isActive) {
+                            delay(TICK_MS)
+                            val elapsedMs = startedAt.elapsedNow().inWholeMilliseconds
+                            emit((clock.baseMs + elapsedMs).coerceAtMost(clock.durationMs.toLong()).toInt())
+                        }
+                    }
+                }
+            }
+
     val uiState: StateFlow<UiState> =
         combine(
             syncClient.status,
             syncClient.state,
             nowPlaying,
             queueEntries,
-            position,
+            displayedPosition,
         ) { status, state, track, queue, posMs ->
             UiState(
                 status = status,
@@ -93,17 +147,16 @@ class ConsoleViewModel @Inject constructor(
             )
         }
             .combine(playbackController.enabled) { ui, playingHere -> ui.copy(playingHere = playingHere) }
+            .combine(appPreferences.keepConsoleAwake) { ui, keepAwake ->
+                ui.copy(keepConsoleAwake = keepAwake)
+            }
             .combine(syncClient.lastFailure) { ui, failure -> ui.copy(failureDetail = failure) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), UiState())
 
     init {
-        if (syncClient.status.value == ConnectionStatus.DISCONNECTED) {
-            syncClient.connect(deviceName())
-        }
         observeCurrentTrack()
         observeQueue()
         observeServerPosition()
-        startPositionTicker()
     }
 
     /** The lane actually on the outputs: an interrupt overrides ambient while it's active,
@@ -142,19 +195,6 @@ class ConsoleViewModel @Inject constructor(
                 .map { activeTrackId(it) to activePosition(it) }
                 .distinctUntilChanged()
                 .collect { position.value = it.second }
-        }
-    }
-
-    private fun startPositionTicker() {
-        viewModelScope.launch {
-            while (true) {
-                delay(TICK_MS)
-                val playing = activePlaying(syncClient.state.value)
-                val durMs = ((nowPlaying.value?.lengthS ?: 0.0) * 1000).toInt()
-                if (playing && durMs > 0) {
-                    position.update { (it + TICK_MS.toInt()).coerceAtMost(durMs) }
-                }
-            }
         }
     }
 
@@ -222,8 +262,6 @@ class ConsoleViewModel @Inject constructor(
 
     /** Cover-art URL for a track id (used by queue rows). */
     fun coverUrl(trackId: Int): String? = mediaUrls.cover(trackId)
-
-    private fun deviceName(): String = Build.MODEL?.takeIf { it.isNotBlank() } ?: "Baton"
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L

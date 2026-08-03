@@ -80,8 +80,8 @@ fun ConsoleScreen(viewModel: ConsoleViewModel = hiltViewModel()) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
     var showDevices by remember { mutableStateOf(false) }
 
-    // The remote shouldn't sleep mid-session — keep the screen on while the Console is shown.
-    KeepScreenOn()
+    // Screen-on is deliberately opt-in: the display is normally Baton's largest battery cost.
+    KeepScreenOn(ui.keepConsoleAwake)
 
     Column(Modifier.fillMaxSize()) {
         // Output picker tucked in the top-right corner, keeping the bottom controls minimal.
@@ -205,10 +205,10 @@ private fun DeviceTopSheet(visible: Boolean, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun KeepScreenOn() {
+private fun KeepScreenOn(enabled: Boolean) {
     val view = LocalView.current
-    DisposableEffect(Unit) {
-        view.keepScreenOn = true
+    DisposableEffect(view, enabled) {
+        view.keepScreenOn = enabled
         onDispose { view.keepScreenOn = false }
     }
 }

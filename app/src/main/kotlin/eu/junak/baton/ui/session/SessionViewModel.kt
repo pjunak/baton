@@ -1,6 +1,5 @@
 package eu.junak.baton.ui.session
 
-import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -123,11 +122,6 @@ class SessionViewModel @Inject constructor(
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), UiState())
 
     init {
-        // The Console normally opens the socket first; connect defensively in case the
-        // app was restored straight onto this tab (so Session works standalone too).
-        if (syncClient.status.value == ConnectionStatus.DISCONNECTED) {
-            syncClient.connect(deviceName())
-        }
         refreshModes()
         // Pull everything the active mode scopes (soundboards/cues/interrupts,
         // EQ presets, playlists-for-interrupt-resolution) whenever it changes.
@@ -251,8 +245,6 @@ class SessionViewModel @Inject constructor(
     fun cancelInterrupt() = syncClient.send(Action.CancelInterrupt)
 
     fun stopLoop(id: String) = syncClient.send(Action.StopLoop(id))
-
-    private fun deviceName(): String = Build.MODEL?.takeIf { it.isNotBlank() } ?: "Baton"
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
