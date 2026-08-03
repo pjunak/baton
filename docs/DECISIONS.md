@@ -122,6 +122,24 @@ an N+1.
 list[TrackOut]` to `music` (additive, guest-accessible like the single-track endpoint, shipped with
 tests). Baton resolves a whole queue in one round trip.
 
-**Consequences.** A small upstream PR ([pjunak/music#10](https://github.com/pjunak/music/pull/10))
-the web app benefits from too. Baton's `TrackRepository`/queue resolution depends on it being
-deployed; absent, queue rows degrade gracefully to "Track #<id>".
+**Consequences.** The endpoint is now part of the deployed sibling-server contract and benefits
+the web app as well. Baton batch-resolves queue misses and preserves id order and duplicates;
+failed metadata still degrades gracefully to `Track #<id>`.
+
+---
+
+## ADR-0009 — Lifecycle-aware controller connection; speaker playback is the exception
+
+**Context.** Keeping the WebSocket, display clock, and screen active while Baton is a backgrounded
+controller wastes battery. Disconnecting unconditionally would stop the foreground speaker role,
+including screen-off Bluetooth playback.
+
+**Decision.** Keep realtime sync connected while either the Activity is started or the local
+speaker role is enabled. Give UI backgrounding a short grace period to absorb rotations and
+overlays. Run the Console position ticker only while lifecycle-aware UI collectors exist. Keep
+screen-on behavior opt-in and Console-scoped.
+
+**Consequences.** A controller-only Baton disconnects shortly after backgrounding and reconciles
+from a fresh snapshot on return. Speaker playback retains its foreground service, Media3 network
+wake mode, and socket regardless of the active Android audio route, so wired and Bluetooth output
+continue with the screen off.

@@ -8,9 +8,9 @@ phone, and optionally let the phone itself be one of the audio outputs.
 Like the server, Baton is **generic** — it bakes in *no* connection details. Point it at your own
 `music` instance at first launch; nothing about a specific server is compiled in.
 
-> **Status: early development.** The core remote-control loop works against a live server. The
-> speaker role, the session/devices surfaces, the in-app updater, and CI are not built yet. See
-> [Implementation status](#implementation-status).
+> **Status:** the controller, optional speaker role, updater, CI, and signed-release pipeline are
+> implemented. Remaining work is product polish and additional UI/static-analysis coverage; see
+> [Design notes](docs/DESIGN-NOTES.md).
 
 ---
 
@@ -97,14 +97,14 @@ UI backlog: **[docs/DESIGN-NOTES.md](docs/DESIGN-NOTES.md)**
 ## Tech stack
 
 Kotlin 2.4 · Jetpack Compose (Material 3, dynamic color) · Hilt · Coroutines/Flow (MVVM) ·
-OkHttp + Retrofit · kotlinx.serialization · Coil 3 · Media3 · AGP 9.3 / Gradle 9.6 ·
+OkHttp + Retrofit · kotlinx.serialization · Coil 3 · Media3 · AGP 9.3.1 / Gradle 9.6.1 ·
 version catalog (`gradle/libs.versions.toml`) · minSdk 33 / compile+target SDK 37.
 
 ## Distribution
 
 GitHub Releases as the artifact host, with an in-app updater (system installer via
 FileProvider) — no Play Store for now (a single upload key is kept so a future Play App
-Signing migration stays clean). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §10/§12.
+Signing migration stays clean). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#build-signing-and-release).
 
 ## License
 

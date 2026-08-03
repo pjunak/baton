@@ -1,73 +1,63 @@
-# Design Notes & UI Backlog
+# Design notes and UI backlog
 
-A living record of UI/UX decisions and a prioritized backlog from design critique. Baton is a
-**single-operator remote** used at tabletop RPG sessions — often a **dim room**, **glanceable**,
-**one-handed**. That context drives the priorities below more than generic "make it pretty."
-
-Status legend: ⏳ planned · 🚧 in progress · ✅ done.
-
----
+Baton is a single-operator remote used one-handed in dim tabletop sessions. Glanceability,
+connection honesty, and reliable controls matter more than decorative density.
 
 ## Design principles
 
-1. **Glanceable first.** The Console must answer "is it playing? what's playing?" from across a
-   table without focus. Big focal play/pause, cover art, large type.
-2. **Fail loud, succeed quiet.** A *good* connection is unremarkable; a *bad* one must be obvious
-   and must disable controls that would silently no-op.
-3. **Consume, don't author** (see [ADR-0006](DECISIONS.md)). Destructive/authoring paths stay in the
-   web app.
-4. **Material 3 + dynamic color**, light/dark. Reserve accent color for meaning (state), not chrome.
+1. **Glanceable first.** The Console should reveal what is playing and whether the room is active
+   without close reading.
+2. **Fail loud, succeed quiet.** Healthy connectivity stays unobtrusive; reconnecting or failed
+   state is prominent and disables mutations that would silently no-op.
+3. **Consume, do not author.** Destructive and authoring workflows stay in the web app; see
+   [ADR-0006](DECISIONS.md#adr-0006--consume-dont-author-web-app-fallback).
+4. **Accent conveys state.** Dynamic Material color is welcome, but warning/error colors and
+   active-mode tint are semantic rather than decorative.
+5. **Background audio is a first-class route.** The same speaker experience must work for the
+   phone speaker, wired output, Bluetooth headphones, and Bluetooth speakers.
 
----
+## Implemented baseline
 
-## Backlog (prioritized)
+- Large Console artwork plus Library and queue thumbnails.
+- A dominant docked play/pause control with secondary transport controls.
+- Opt-in Keep Console awake behavior.
+- Offline-disabled mutations and a prominent reconnect/disconnect banner.
+- Lifecycle-aware Console ticker and controller socket lifetime.
+- Screen-off foreground playback while the local speaker role is enabled.
+- Honest loading, empty, error, and retry states for Library data.
+- State-driven shuffle/repeat treatments and a smooth dead-reckoned seek display.
 
-### P1 — glanceability core
-- ⏳ **Cover art on the Console now-playing** (large), and as thumbnails on Library/queue rows.
-  Backend serves `GET /api/library/tracks/{id}/cover`; load via Coil on the shared OkHttp client.
-- ⏳ **Dominant play/pause.** Filled primary button, ~72dp — the one control findable without
-  looking. Demote skip/shuffle/repeat to secondary weight.
-- ⏳ **Keep screen awake on Console** (`FLAG_KEEP_SCREEN_ON` via a `DisposableEffect`), ideally a
-  Settings toggle. The remote shouldn't sleep mid-encounter.
+## Prioritized backlog
 
-### P2 — connection honesty
-- ⏳ **Disable transport unless `Connected`.** Dim controls during `Connecting`/`Disconnected` so
-  taps don't silently no-op.
-- ⏳ **Elevate the bad status.** De-emphasize "● Connected" to `onSurfaceVariant`; make
-  disconnected/reconnecting prominent (color + label), since that's the only status worth noticing.
+### P1 — accessibility and input semantics
 
-### P3 — consistency & polish
-- ⏳ **Shared UI components + spacing scale.** Extract `SectionHeader`, a common list row, and an
-  8/16/24 spacing scale; today each screen re-declares helpers (pairs with the `TrackRepository`
-  DRY cleanup from code review).
-- ⏳ **Repeat mode clarity.** The off→follow→queue→track cycle exposes backend jargon ("Follow").
-  Keep the caption; consider labeling the icon or trimming to off/all/one with "Follow" behind a
-  long-press.
-- ⏳ **Queue interactions.** Tap-to-jump and drag-to-reorder (reorder is a stated v1 goal); today
-  rows only support remove (✕).
-- ⏳ **Library hierarchy.** Visually separate *actions* (Up, "Play this folder") from *content*
-  (folders, tracks) — a subtle header or grouping.
+- Add progress/adjustment semantics to the custom seek and device-volume controls, including
+  descriptive labels and announced values.
+- Review artwork descriptions: keep genuinely decorative thumbnails silent, but describe the
+  large now-playing artwork where it adds useful context.
+- Move remaining user-visible literals into string resources and verify screen-reader traversal,
+  switch semantics, disabled-state contrast, and minimum touch targets.
 
-### P4 — onboarding & accessibility
-- ⏳ **Setup wizard warmth.** App name + one-line "Connect to your music server" to orient; it's
-  currently a bare centered form.
-- ⏳ **Accessibility.** Use `onSurface`/`onSurfaceVariant` for text (reserve `primary` for the
-  status dot); add slider semantics labels; alt text on cover art when added. AMOLED-friendly dark.
+### P2 — queue and library clarity
 
----
+- Add queue tap-to-jump and drag-to-reorder. Rows currently support removal and clearing only.
+- Visually separate Library actions (Up, Play this folder) from folders and tracks.
+- Revisit the four-state repeat cycle in user-visible copy. Current icons and accessibility labels
+  distinguish off, continue, repeat all, and repeat one, but the behavior remains dense.
 
-## What works (keep)
+### P3 — consistency and responsive layout
 
-- Honest empty/loading/error states in Library.
-- Clean sectioned Settings.
-- State-driven UI with the active-mode tint on shuffle/repeat.
-- Dead-reckoned seek bar (smooth without flooding the socket).
+- Extract repeated section headers/list-row conventions and centralize the 8/16/24 spacing scale.
+- Add the Baton name/mark to setup and finish the adaptive launcher/wordmark treatment.
+- Design and test a landscape/large-screen Console, likely placing artwork and controls side by
+  side instead of stretching the portrait list.
 
----
+### P4 — test and static-analysis coverage
 
-## Open questions
+- Restore Compose UI tests once the AGP task/tooling path is reliable.
+- Evaluate detekt and formatting enforcement without duplicating compiler or Android lint checks.
 
-- **Branding:** no logo/wordmark yet. Worth a minimal mark + adaptive launcher icon before the first
-  on-phone test build.
-- **Landscape / large screens:** untested; the Console list should adapt (cover + controls side by
-  side) eventually.
+## Deferred product questions
+
+- Private-CA pairing, QR setup, multiple servers, offline caching, and crash reporting remain
+  phase-two capabilities; see [ARCHITECTURE.md](ARCHITECTURE.md#deferred-work).

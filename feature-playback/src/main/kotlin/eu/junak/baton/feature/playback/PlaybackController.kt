@@ -21,8 +21,8 @@ import javax.inject.Singleton
 /**
  * The phone-as-speaker on/off — owned at app scope so the Console switch and the
  * [PlaybackService] share one source of truth. Turning it on starts the foreground
- * playback service AND designates this device as an output on the server (so it
- * shows up in everyone's device list / the Devices tab).
+ * playback service AND activates this connected device as an output on the server (so it
+ * shows up in everyone's live output list / the Devices surface).
  *
  * The local [enabled] flag is what actually gates audio, so it survives reconnects
  * (the server clears `active_output_device_ids` on disconnect) — matching the
@@ -69,7 +69,7 @@ class PlaybackController @Inject constructor(
         if (on) {
             ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java))
         }
-        // Best-effort: keep the server's output list honest so the Devices tab and
+        // Best-effort: keep the server's output list honest so the Devices surface and
         // other clients reflect this phone. (No-op while disconnected; the local
         // flag above is the real gate.)
         val current = syncClient.state.value?.activeOutputDeviceIds.orEmpty()
