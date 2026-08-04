@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,7 +48,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import eu.junak.baton.R
 import eu.junak.baton.core.model.Track
-import eu.junak.baton.ui.components.TrackArtwork
+import eu.junak.baton.ui.components.SectionHeader
+import eu.junak.baton.ui.components.TrackListItem
+import eu.junak.baton.ui.theme.BatonSpacing
 
 @Composable
 fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
@@ -64,7 +65,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = BatonSpacing.Medium, vertical = BatonSpacing.Small),
         )
 
         when {
@@ -99,7 +100,12 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                     }
                 }
                 if (ui.folders.isNotEmpty()) {
-                    item { LibrarySectionHeader(stringResource(R.string.library_folders)) }
+                    item {
+                        SectionHeader(
+                            stringResource(R.string.library_folders),
+                            Modifier.padding(horizontal = BatonSpacing.Medium, vertical = 12.dp),
+                        )
+                    }
                 }
                 items(ui.folders, key = { "f:${it.path}" }) { folder ->
                     ListItem(
@@ -118,7 +124,12 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                     )
                 }
                 if (ui.tracks.isNotEmpty()) {
-                    item { LibrarySectionHeader(stringResource(R.string.library_tracks)) }
+                    item {
+                        SectionHeader(
+                            stringResource(R.string.library_tracks),
+                            Modifier.padding(horizontal = BatonSpacing.Medium, vertical = 12.dp),
+                        )
+                    }
                 }
                 items(ui.tracks, key = { "t:${it.id}" }) { track ->
                     TrackRow(track, viewModel.coverUrl(track.id), { viewModel.playTrack(track) }, { viewModel.enqueue(track) }, { viewModel.playInterrupt(track) })
@@ -127,7 +138,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                     item {
                         Text(
                             text = stringResource(R.string.library_folder_empty),
-                            modifier = Modifier.padding(24.dp),
+                            modifier = Modifier.padding(BatonSpacing.Large),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -142,13 +153,13 @@ private fun FolderActions(path: String, canPlay: Boolean, onUp: () -> Unit, onPl
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = BatonSpacing.Medium, vertical = BatonSpacing.Small),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.secondaryContainer,
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(BatonSpacing.Medium),
+            verticalArrangement = Arrangement.spacedBy(BatonSpacing.Small),
         ) {
             Text(
                 text = stringResource(R.string.library_folder_actions),
@@ -164,7 +175,7 @@ private fun FolderActions(path: String, canPlay: Boolean, onUp: () -> Unit, onPl
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(BatonSpacing.Small)) {
                 if (path.isNotEmpty()) {
                     OutlinedButton(
                         onClick = onUp,
@@ -173,28 +184,18 @@ private fun FolderActions(path: String, canPlay: Boolean, onUp: () -> Unit, onPl
                         ),
                     ) {
                         Icon(Icons.Filled.ArrowUpward, contentDescription = null)
-                        Text(stringResource(R.string.library_up), Modifier.padding(start = 8.dp))
+                        Text(stringResource(R.string.library_up), Modifier.padding(start = BatonSpacing.Small))
                     }
                 }
                 if (canPlay) {
                     FilledTonalButton(onClick = onPlay) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                        Text(stringResource(R.string.library_play_folder), Modifier.padding(start = 8.dp))
+                        Text(stringResource(R.string.library_play_folder), Modifier.padding(start = BatonSpacing.Small))
                     }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun LibrarySectionHeader(title: String) {
-    Text(
-        text = title,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -210,10 +211,10 @@ private fun TrackRow(
     val playLabel = stringResource(R.string.library_play_track, track.effectiveTitle)
     val optionsLabel = stringResource(R.string.library_track_options, track.effectiveTitle)
     Box {
-        ListItem(
-            leadingContent = { TrackArtwork(coverUrl, Modifier.size(44.dp), corner = 6.dp) },
-            headlineContent = { Text(track.effectiveTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            supportingContent = { Text(track.artist.ifBlank { stringResource(R.string.unknown_artist) }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        TrackListItem(
+            title = track.effectiveTitle,
+            artist = track.artist,
+            artworkUrl = coverUrl,
             trailingContent = {
                 IconButton(onClick = onEnqueue) {
                     Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = stringResource(R.string.library_add_queue))

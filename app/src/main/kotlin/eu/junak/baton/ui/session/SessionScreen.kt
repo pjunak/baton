@@ -44,6 +44,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import eu.junak.baton.R
+import eu.junak.baton.ui.components.SectionHeader
+import eu.junak.baton.ui.theme.BatonSpacing
 
 /**
  * Session controls — the live-firing surface for the active *mode* (scene):
@@ -61,7 +63,7 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(BatonSpacing.Medium),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         // --- Modes ----------------------------------------------------------
@@ -70,7 +72,7 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
             if (ui.modes.isEmpty()) {
                 Hint(stringResource(R.string.session_no_modes))
             } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(BatonSpacing.Small)) {
                     ui.modes.forEach { mode ->
                         FilterChip(
                             selected = mode.active,
@@ -88,8 +90,8 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
             item { SectionHeader(stringResource(R.string.session_cues)) }
             item {
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(BatonSpacing.Small),
+                    verticalArrangement = Arrangement.spacedBy(BatonSpacing.Small),
                 ) {
                     ui.cues.forEach { cue ->
                         CueButton(cue.name, cue.description, enabled = ui.connected) {
@@ -114,11 +116,11 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
                 else -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Hint(stringResource(R.string.session_sound_hint))
                     ui.soundCategories.forEach { category ->
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(BatonSpacing.Small)) {
                             Text(category.name, style = MaterialTheme.typography.titleSmall)
                             FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(BatonSpacing.Small),
+                                verticalArrangement = Arrangement.spacedBy(BatonSpacing.Small),
                             ) {
                                 category.items.forEach { item ->
                                     SoundButton(
@@ -141,7 +143,7 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
             item { SectionHeader(stringResource(R.string.session_eq_presets)) }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(BatonSpacing.Small)) {
                         ui.presets.forEach { preset ->
                             FilterChip(
                                 selected = preset.active,
@@ -223,11 +225,6 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun SectionHeader(text: String) {
-    Text(text, style = MaterialTheme.typography.titleMedium)
-}
-
-@Composable
 private fun LiveRow(label: String, enabled: Boolean, onStop: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -303,7 +300,7 @@ private fun SoundButton(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(8.dp),
+                .padding(BatonSpacing.Small),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

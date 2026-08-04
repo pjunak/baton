@@ -54,6 +54,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import eu.junak.baton.BuildConfig
 import eu.junak.baton.R
 import eu.junak.baton.feature.update.UpdateState
+import eu.junak.baton.ui.components.SectionHeader
+import eu.junak.baton.ui.theme.BatonSpacing
 import java.io.File
 
 private enum class SettingsTab {
@@ -74,7 +76,7 @@ fun SettingsScreen(
     val tabs = remember { SettingsTab.entries }
 
     Column(Modifier.fillMaxSize()) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Column(Modifier.padding(horizontal = BatonSpacing.Medium, vertical = 14.dp)) {
             Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineSmall)
             Text(
                 stringResource(R.string.settings_subtitle),
@@ -138,7 +140,7 @@ private fun GeneralSettings(
     onSignOut: () -> Unit,
 ) {
     SettingsPage {
-        SectionHeader(stringResource(R.string.settings_section_account))
+        SettingsSectionHeader(stringResource(R.string.settings_section_account))
         ListItem(
             leadingContent = { Icon(Icons.Filled.Person, contentDescription = null) },
             headlineContent = { Text(username ?: "—") },
@@ -149,15 +151,15 @@ private fun GeneralSettings(
             enabled = !signingOut,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = BatonSpacing.Medium, vertical = BatonSpacing.Small),
         ) {
             Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(BatonSpacing.Small))
             Text(stringResource(R.string.settings_sign_out))
         }
 
         HorizontalDivider()
-        SectionHeader(stringResource(R.string.settings_section_server))
+        SettingsSectionHeader(stringResource(R.string.settings_section_server))
         ListItem(
             leadingContent = { Icon(Icons.Filled.Dns, contentDescription = null) },
             headlineContent = {
@@ -174,10 +176,10 @@ private fun GeneralSettings(
                 onClick = { onOpenServer(url) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = BatonSpacing.Medium, vertical = BatonSpacing.Small),
             ) {
                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(BatonSpacing.Small))
                 Text(stringResource(R.string.settings_open_web_app))
             }
         }
@@ -190,7 +192,7 @@ private fun PlaybackSettings(
     onKeepConsoleAwakeChanged: (Boolean) -> Unit,
 ) {
     SettingsPage {
-        SectionHeader(stringResource(R.string.settings_section_console))
+        SettingsSectionHeader(stringResource(R.string.settings_section_console))
         ListItem(
             modifier = Modifier.toggleable(
                 value = keepConsoleAwake,
@@ -209,7 +211,7 @@ private fun PlaybackSettings(
         )
 
         HorizontalDivider()
-        SectionHeader(stringResource(R.string.settings_section_background_audio))
+        SettingsSectionHeader(stringResource(R.string.settings_section_background_audio))
         ListItem(
             leadingContent = { Icon(Icons.Filled.Headphones, contentDescription = null) },
             headlineContent = { Text(stringResource(R.string.settings_background_audio_title)) },
@@ -226,7 +228,7 @@ private fun UpdatesSettings(
     onInstall: (File) -> Unit,
 ) {
     SettingsPage {
-        SectionHeader(stringResource(R.string.settings_section_about))
+        SettingsSectionHeader(stringResource(R.string.settings_section_about))
         ListItem(
             leadingContent = { Icon(Icons.Filled.Info, contentDescription = null) },
             headlineContent = {
@@ -246,7 +248,7 @@ private fun SettingsPage(content: @Composable () -> Unit) {
             .verticalScroll(rememberScrollState()),
     ) {
         content()
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(BatonSpacing.Large))
     }
 }
 
@@ -261,7 +263,7 @@ private fun UpdateSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = BatonSpacing.Medium, vertical = 4.dp),
     ) {
         when (state) {
             UpdateState.Idle ->
@@ -281,7 +283,7 @@ private fun UpdateSection(
                     stringResource(R.string.settings_up_to_date),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(BatonSpacing.Small))
                 OutlinedButton(onClick = onCheck, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.settings_check_again))
                 }
@@ -302,23 +304,23 @@ private fun UpdateSection(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(BatonSpacing.Small))
                 Button(onClick = { onDownload(state) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.Download, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(BatonSpacing.Small))
                     Text(stringResource(R.string.settings_download_install))
                 }
             }
 
             is UpdateState.Downloading -> {
                 Text(stringResource(R.string.settings_downloading, (state.progress * 100).toInt()))
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(BatonSpacing.Small))
                 LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
             }
 
             is UpdateState.ReadyToInstall -> {
                 Text(stringResource(R.string.settings_downloaded, state.version))
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(BatonSpacing.Small))
                 Button(onClick = { onInstall(state.apk) }, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.settings_install))
                 }
@@ -326,7 +328,7 @@ private fun UpdateSection(
 
             is UpdateState.Error -> {
                 Text(state.message, color = MaterialTheme.colorScheme.error)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(BatonSpacing.Small))
                 OutlinedButton(onClick = onCheck, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.settings_try_again))
                 }
@@ -336,11 +338,14 @@ private fun UpdateSection(
 }
 
 @Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+private fun SettingsSectionHeader(title: String) {
+    SectionHeader(
+        title = title,
+        modifier = Modifier.padding(
+            start = BatonSpacing.Medium,
+            end = BatonSpacing.Medium,
+            top = BatonSpacing.Medium,
+            bottom = 4.dp,
+        ),
     )
 }

@@ -55,6 +55,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import eu.junak.baton.R
 import eu.junak.baton.ui.devices.DevicesViewModel.DeviceRow
+import eu.junak.baton.ui.theme.BatonSpacing
 
 /**
  * Output-device picker, shown as a sheet pulled down from the top of the Console
@@ -70,12 +71,12 @@ fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
         Modifier
             .fillMaxWidth()
             .semantics { paneTitle = title }
-            .padding(bottom = 24.dp),
+            .padding(bottom = BatonSpacing.Large),
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = BatonSpacing.Large, vertical = BatonSpacing.Small),
         )
         if (ui.devices.isEmpty()) {
             Text(
@@ -84,7 +85,7 @@ fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
                 ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(BatonSpacing.Large),
             )
         } else {
             ui.devices.forEach { device ->
@@ -112,7 +113,7 @@ private fun DeviceCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 8.dp),
+            .padding(horizontal = BatonSpacing.Large, vertical = BatonSpacing.Small),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(

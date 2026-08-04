@@ -32,6 +32,12 @@ connection honesty, and reliable controls matter more than decorative density.
   folder and track content.
 - The four Console end-of-queue states use explicit accessibility copy: off, continue into the
   library, repeat the whole queue, and repeat the current track.
+- Shared section headers, track rows, and an 8/16/24 layout-spacing scale keep the compact screens
+  visually consistent without conflating spacing with component dimensions.
+- Setup reuses the adaptive Baton mark and wordmark; the launcher also provides round and
+  monochrome layers for themed icons.
+- Landscape phones and large windows split Console into now-playing and queue/control panes;
+  portrait phones retain the focused stacked layout.
 
 ## Prioritized backlog
 
@@ -42,17 +48,15 @@ connection honesty, and reliable controls matter more than decorative density.
   pane transition. The custom controls, output switches, navigation tabs, artwork descriptions,
   long-press actions, 48dp interaction regions, and user-visible string resources are implemented.
 
-### P3 — consistency and responsive layout
-
-- Extract repeated section headers/list-row conventions and centralize the 8/16/24 spacing scale.
-- Add the Baton name/mark to setup and finish the adaptive launcher/wordmark treatment.
-- Design and test a landscape/large-screen Console, likely placing artwork and controls side by
-  side instead of stretching the portrait list.
-
 ### P4 — test and static-analysis coverage
 
-- Restore Compose UI tests once the AGP task/tooling path is reliable.
-- Evaluate detekt and formatting enforcement without duplicating compiler or Android lint checks.
+- Add device-backed Compose UI tests when CI has an emulator or managed-device runner. Unit tests
+  cover the responsive breakpoint policy, but gestures, pane layout, and TalkBack still need a
+  real Compose host.
+
+Android lint now runs in CI alongside compilation and unit tests. Detekt and a separate formatter
+are intentionally not added: at this project size they would mostly duplicate compiler/lint checks
+and add another Kotlin-tooling compatibility surface. Revisit if modules or contributors multiply.
 
 ## Deferred product questions
 

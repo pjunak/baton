@@ -13,11 +13,13 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -25,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,7 +45,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -79,6 +81,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -87,9 +90,11 @@ import eu.junak.baton.core.model.LoopMode
 import eu.junak.baton.core.model.ShuffleMode
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.ui.components.TrackArtwork
+import eu.junak.baton.ui.components.TrackListItem
 import eu.junak.baton.ui.console.ConsoleViewModel.QueueEntry
 import eu.junak.baton.ui.devices.DevicePicker
 import eu.junak.baton.ui.theme.ActiveAccent
+import eu.junak.baton.ui.theme.BatonSpacing
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -102,94 +107,154 @@ fun ConsoleScreen(viewModel: ConsoleViewModel = hiltViewModel()) {
     // Screen-on is deliberately opt-in: the display is normally Baton's largest battery cost.
     KeepScreenOn(ui.keepConsoleAwake)
 
-    Column(Modifier.fillMaxSize()) {
-        // Output picker tucked in the top-right corner, keeping the bottom controls minimal.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            IconButton(onClick = { showDevices = true }) {
-                Icon(
-                    imageVector = Icons.Filled.Speaker,
-                    contentDescription = stringResource(R.string.devices_title),
-                    tint = if (ui.playingHere) ActiveAccent else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        // Scrollable: artwork, now-playing, and the queue.
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (!ui.connected) {
-                item { ConnectionBanner(ui.status, ui.failureDetail) }
-            }
-
-            item {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    TrackArtwork(
-                        url = ui.coverUrl,
-                        modifier = Modifier.size(240.dp),
-                        corner = 16.dp,
-                        description = ui.nowPlaying?.effectiveTitle?.let {
-                            stringResource(R.string.console_artwork_description, it)
-                        },
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    NowPlaying(ui.nowPlaying?.effectiveTitle, ui.nowPlaying?.artist)
-                }
-            }
-
-            if (ui.queue.isNotEmpty()) {
-                item { QueueHeader(ui.queue.size, enabled = ui.connected, onClear = viewModel::clearQueue) }
-                itemsIndexed(ui.queue, key = { index, entry -> "q:$index:${entry.trackId}" }) { index, entry ->
-                    QueueRow(
-                        entry = entry,
-                        index = index,
-                        queueSize = ui.queue.size,
-                        coverUrl = viewModel.coverUrl(entry.trackId),
-                        enabled = ui.connected,
-                        onPlay = { viewModel.jumpToQueue(index) },
-                        onMove = viewModel::moveQueueItem,
-                        onRemove = { viewModel.removeFromQueue(index) },
-                    )
-                }
-            }
-        }
-
-        // Pinned, centered control bar (Spotify-style): thin seek line, compact transport, device picker.
-        Surface(tonalElevation = 3.dp, shadowElevation = 8.dp) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 24.dp, end = 24.dp, top = 0.dp, bottom = 10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                // Negative gap: the seek block drops into the control buttons' empty top padding.
-                // Safe because the times sit at the far edges while the controls are centered.
-                verticalArrangement = Arrangement.spacedBy((-12).dp),
-            ) {
-                SeekLine(ui.positionMs, ui.durationMs, enabled = ui.connected, onSeek = viewModel::seekTo)
-                TransportRow(
-                    shuffle = ui.shuffle,
-                    loop = ui.loop,
-                    enabled = ui.connected,
-                    onShuffle = viewModel::cycleShuffle,
-                    onPrevious = viewModel::skipPrevious,
-                    onNext = viewModel::skipNext,
-                    onLoop = viewModel::cycleLoop,
-                )
-            }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val useWideLayout = useWideConsoleLayout(maxWidth.value, maxHeight.value)
+        if (useWideLayout) {
+            ConsoleWide(ui, viewModel, onShowDevices = { showDevices = true })
+        } else {
+            ConsolePortrait(ui, viewModel, onShowDevices = { showDevices = true })
         }
     }
 
     DeviceTopSheet(visible = showDevices, onDismiss = { showDevices = false })
+}
+
+@Composable
+private fun ConsolePortrait(
+    ui: ConsoleViewModel.UiState,
+    viewModel: ConsoleViewModel,
+    onShowDevices: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        OutputPicker(ui.playingHere, onShowDevices)
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(BatonSpacing.Medium),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (!ui.connected) item { ConnectionBanner(ui.status, ui.failureDetail) }
+            item { ArtworkAndNowPlaying(ui, artworkSize = 240.dp) }
+            queueContent(ui, viewModel)
+        }
+        ConsoleControlBar(ui, viewModel)
+    }
+}
+
+@Composable
+private fun ConsoleWide(
+    ui: ConsoleViewModel.UiState,
+    viewModel: ConsoleViewModel,
+    onShowDevices: () -> Unit,
+) {
+    Row(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .weight(0.44f)
+                .fillMaxHeight(),
+            contentPadding = PaddingValues(BatonSpacing.Medium),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (!ui.connected) item { ConnectionBanner(ui.status, ui.failureDetail) }
+            item { ArtworkAndNowPlaying(ui, artworkSize = 200.dp) }
+        }
+        Column(
+            modifier = Modifier
+                .weight(0.56f)
+                .fillMaxHeight(),
+        ) {
+            OutputPicker(ui.playingHere, onShowDevices)
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = BatonSpacing.Medium),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                queueContent(ui, viewModel)
+            }
+            ConsoleControlBar(ui, viewModel)
+        }
+    }
+}
+
+@Composable
+private fun OutputPicker(playingHere: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        IconButton(onClick = onClick) {
+            Icon(
+                imageVector = Icons.Filled.Speaker,
+                contentDescription = stringResource(R.string.devices_title),
+                tint = if (playingHere) ActiveAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtworkAndNowPlaying(ui: ConsoleViewModel.UiState, artworkSize: Dp) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        TrackArtwork(
+            url = ui.coverUrl,
+            modifier = Modifier.size(artworkSize),
+            corner = BatonSpacing.Medium,
+            description = ui.nowPlaying?.effectiveTitle?.let {
+                stringResource(R.string.console_artwork_description, it)
+            },
+        )
+        Spacer(Modifier.height(20.dp))
+        NowPlaying(ui.nowPlaying?.effectiveTitle, ui.nowPlaying?.artist)
+    }
+}
+
+private fun LazyListScope.queueContent(ui: ConsoleViewModel.UiState, viewModel: ConsoleViewModel) {
+    if (ui.queue.isEmpty()) return
+    item { QueueHeader(ui.queue.size, enabled = ui.connected, onClear = viewModel::clearQueue) }
+    itemsIndexed(ui.queue, key = { index, entry -> "q:$index:${entry.trackId}" }) { index, entry ->
+        QueueRow(
+            entry = entry,
+            index = index,
+            queueSize = ui.queue.size,
+            coverUrl = viewModel.coverUrl(entry.trackId),
+            enabled = ui.connected,
+            onPlay = { viewModel.jumpToQueue(index) },
+            onMove = viewModel::moveQueueItem,
+            onRemove = { viewModel.removeFromQueue(index) },
+        )
+    }
+}
+
+@Composable
+private fun ConsoleControlBar(ui: ConsoleViewModel.UiState, viewModel: ConsoleViewModel) {
+    Surface(tonalElevation = 3.dp, shadowElevation = BatonSpacing.Small) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = BatonSpacing.Large, end = BatonSpacing.Large, top = 0.dp, bottom = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            // The seek block drops into the transport buttons' unused top padding.
+            verticalArrangement = Arrangement.spacedBy((-12).dp),
+        ) {
+            SeekLine(ui.positionMs, ui.durationMs, enabled = ui.connected, onSeek = viewModel::seekTo)
+            TransportRow(
+                shuffle = ui.shuffle,
+                loop = ui.loop,
+                enabled = ui.connected,
+                onShuffle = viewModel::cycleShuffle,
+                onPrevious = viewModel::skipPrevious,
+                onNext = viewModel::skipNext,
+                onLoop = viewModel::cycleLoop,
+            )
+        }
+    }
 }
 
 /**
@@ -266,7 +331,7 @@ private fun ConnectionBanner(status: ConnectionStatus, failureDetail: String?) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (connecting) {
                     CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = onContainer)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(BatonSpacing.Small))
                 }
                 Text(
                     text = stringResource(
@@ -526,10 +591,10 @@ private fun QueueRow(
     val moveUpLabel = stringResource(R.string.console_move_queue_up)
     val moveDownLabel = stringResource(R.string.console_move_queue_down)
 
-    ListItem(
-        leadingContent = { TrackArtwork(coverUrl, Modifier.size(44.dp), corner = 6.dp) },
-        headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { Text(entry.track?.artist?.ifBlank { stringResource(R.string.unknown_artist) } ?: stringResource(R.string.unknown_artist), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+    TrackListItem(
+        title = title,
+        artist = entry.track?.artist,
+        artworkUrl = coverUrl,
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -590,3 +655,7 @@ private fun formatTime(ms: Int): String {
     val totalSeconds = ms / 1000
     return String.format(Locale.US, "%d:%02d", totalSeconds / 60, totalSeconds % 60)
 }
+
+/** Landscape phones and large windows get independent now-playing and queue panes. */
+internal fun useWideConsoleLayout(widthDp: Float, heightDp: Float): Boolean =
+    widthDp >= 840f || (widthDp >= 600f && widthDp > heightDp)
