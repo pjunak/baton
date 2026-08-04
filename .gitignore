@@ -34,6 +34,11 @@ local.properties
 *.jks
 *.keystore
 *.p12
+*.pfx
+*.key
+*.pem
+id_rsa
+id_ed25519
 keystore.properties
 signing.properties
 google-services.json
