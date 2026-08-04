@@ -1,6 +1,7 @@
 package eu.junak.baton.settings
 
 import android.content.Context
+import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +25,7 @@ class AppPreferences @Inject constructor(
 
     fun setKeepConsoleAwake(enabled: Boolean) {
         if (_keepConsoleAwake.value == enabled) return
-        preferences.edit().putBoolean(KEY_KEEP_CONSOLE_AWAKE, enabled).apply()
+        preferences.edit { putBoolean(KEY_KEEP_CONSOLE_AWAKE, enabled) }
         _keepConsoleAwake.value = enabled
     }
 
