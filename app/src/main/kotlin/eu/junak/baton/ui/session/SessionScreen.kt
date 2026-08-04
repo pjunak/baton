@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import eu.junak.baton.R
 
 /**
  * Session controls — the live-firing surface for the active *mode* (scene):
@@ -63,10 +65,10 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         // --- Modes ----------------------------------------------------------
-        item { SectionHeader("Modes") }
+        item { SectionHeader(stringResource(R.string.session_modes)) }
         item {
             if (ui.modes.isEmpty()) {
-                Hint("No modes configured on the server.")
+                Hint(stringResource(R.string.session_no_modes))
             } else {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ui.modes.forEach { mode ->
@@ -83,7 +85,7 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
 
         // --- Cues -----------------------------------------------------------
         if (ui.cues.isNotEmpty()) {
-            item { SectionHeader("Cues") }
+            item { SectionHeader(stringResource(R.string.session_cues)) }
             item {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -99,13 +101,18 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
         }
 
         // --- Soundboard -----------------------------------------------------
-        item { SectionHeader(ui.soundboardName?.let { "Soundboard · $it" } ?: "Soundboard") }
+        item {
+            SectionHeader(
+                ui.soundboardName?.let { stringResource(R.string.session_soundboard_named, it) }
+                    ?: stringResource(R.string.session_soundboard),
+            )
+        }
         item {
             when {
-                ui.activeModeId == null -> Hint("Activate a mode to load its soundboard.")
-                ui.soundCategories.isEmpty() -> Hint("This mode has no soundboard sounds.")
+                ui.activeModeId == null -> Hint(stringResource(R.string.session_activate_mode))
+                ui.soundCategories.isEmpty() -> Hint(stringResource(R.string.session_no_sounds))
                 else -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Hint("Tap to fire once · hold to start a repeating loop.")
+                    Hint(stringResource(R.string.session_sound_hint))
                     ui.soundCategories.forEach { category ->
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(category.name, style = MaterialTheme.typography.titleSmall)
@@ -131,7 +138,7 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
 
         // --- EQ presets -------------------------------------------------------
         if (ui.presets.isNotEmpty()) {
-            item { SectionHeader("EQ presets") }
+            item { SectionHeader(stringResource(R.string.session_eq_presets)) }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -146,7 +153,7 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
                     }
                     if (ui.presets.any { it.active }) {
                         TextButton(onClick = viewModel::clearPresets, enabled = ui.connected) {
-                            Text("Clear all")
+                            Text(stringResource(R.string.action_clear_all))
                         }
                     }
                 }
@@ -155,7 +162,7 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
 
         // --- Interrupts -------------------------------------------------------
         if (ui.interrupts.isNotEmpty()) {
-            item { SectionHeader("Interrupts") }
+            item { SectionHeader(stringResource(R.string.session_interrupts)) }
             items(ui.interrupts, key = { "${it.name}|${it.detail}" }) { interrupt ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -178,19 +185,27 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
                     OutlinedButton(
                         onClick = { viewModel.fireInterrupt(interrupt) },
                         enabled = ui.connected && interrupt.canFire,
-                    ) { Text("Fire") }
+                    ) { Text(stringResource(R.string.action_fire)) }
                 }
             }
         }
 
         // --- Live: interrupt + loops ---------------------------------------
         if (ui.interruptActive || ui.loops.isNotEmpty()) {
-            item { SectionHeader("Now") }
+            item { SectionHeader(stringResource(R.string.session_now)) }
             if (ui.interruptActive) {
-                item { LiveRow("Interrupt playing", enabled = ui.connected, onStop = viewModel::cancelInterrupt) }
+                item {
+                    LiveRow(
+                        stringResource(R.string.session_interrupt_playing),
+                        enabled = ui.connected,
+                        onStop = viewModel::cancelInterrupt,
+                    )
+                }
             }
             items(ui.loops, key = { it.id }) { loop ->
-                LiveRow("Loop · ${loop.name}", enabled = ui.connected) { viewModel.stopLoop(loop.id) }
+                LiveRow(stringResource(R.string.session_loop_named, loop.name), enabled = ui.connected) {
+                    viewModel.stopLoop(loop.id)
+                }
             }
         }
     }
@@ -220,7 +235,7 @@ private fun LiveRow(label: String, enabled: Boolean, onStop: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge)
-        OutlinedButton(onClick = onStop, enabled = enabled) { Text("Stop") }
+        OutlinedButton(onClick = onStop, enabled = enabled) { Text(stringResource(R.string.action_stop)) }
     }
 }
 
@@ -269,13 +284,21 @@ private fun SoundButton(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    val fireLabel = stringResource(R.string.session_fire_sound, name)
+    val loopLabel = stringResource(R.string.session_loop_sound, name)
     Surface(
         shape = RoundedCornerShape(12.dp),
         tonalElevation = 2.dp,
         modifier = Modifier
             .size(width = 104.dp, height = 76.dp)
             .clip(RoundedCornerShape(12.dp))
-            .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick),
+            .combinedClickable(
+                enabled = enabled,
+                onClickLabel = fireLabel,
+                onClick = onClick,
+                onLongClickLabel = loopLabel,
+                onLongClick = onLongClick,
+            ),
     ) {
         Column(
             modifier = Modifier
@@ -311,15 +334,15 @@ private fun LoopIntervalDialog(
     val interval = intervalText.toIntOrNull()?.takeIf { it in 1..3600 }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Loop “$soundName”") },
+        title = { Text(stringResource(R.string.session_loop_dialog_title, soundName)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Fire every N seconds until stopped (runs on the server — every client sees it under Now).")
+                Text(stringResource(R.string.session_loop_dialog_help))
                 OutlinedTextField(
                     value = intervalText,
                     onValueChange = { value -> intervalText = value.filter(Char::isDigit).take(4) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    suffix = { Text("s") },
+                    suffix = { Text(stringResource(R.string.seconds_short)) },
                     singleLine = true,
                     isError = interval == null,
                 )
@@ -329,8 +352,8 @@ private fun LoopIntervalDialog(
             TextButton(
                 enabled = interval != null,
                 onClick = { interval?.let { onConfirm(it.toDouble()) } },
-            ) { Text("Start loop") }
+            ) { Text(stringResource(R.string.session_start_loop)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }

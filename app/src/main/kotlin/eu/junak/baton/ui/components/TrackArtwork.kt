@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -28,9 +30,16 @@ fun TrackArtwork(
     url: String?,
     modifier: Modifier = Modifier,
     corner: Dp = 8.dp,
+    description: String? = null,
 ) {
+    val accessibility = if (description == null) {
+        Modifier
+    } else {
+        Modifier.semantics { contentDescription = description }
+    }
     Box(
         modifier = modifier
+            .then(accessibility)
             .clip(RoundedCornerShape(corner))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,

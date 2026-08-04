@@ -1,8 +1,11 @@
 package eu.junak.baton.ui.setup
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import eu.junak.baton.R
 import eu.junak.baton.core.network.ServerConfig
 import eu.junak.baton.core.network.auth.AuthRepository
 import eu.junak.baton.core.network.auth.LoginResult
@@ -25,6 +28,7 @@ import javax.inject.Inject
 class SetupViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val serverConfig: ServerConfig,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     enum class Step { URL, CREDENTIALS }
@@ -47,7 +51,7 @@ class SetupViewModel @Inject constructor(
             UiState(
                 step = Step.CREDENTIALS,
                 url = existing.toString(),
-                error = "Your session ended — sign in again.",
+                error = context.getString(R.string.setup_session_ended),
             )
         } ?: UiState(),
     )
@@ -86,7 +90,12 @@ class SetupViewModel @Inject constructor(
                     onConnected()
                 }
                 LoginResult.InvalidCredentials ->
-                    _ui.update { it.copy(busy = false, error = "Invalid username or password.") }
+                    _ui.update {
+                        it.copy(
+                            busy = false,
+                            error = context.getString(R.string.setup_invalid_credentials),
+                        )
+                    }
                 is LoginResult.Error ->
                     _ui.update { it.copy(busy = false, error = result.message) }
             }

@@ -1,0 +1,14 @@
+<resources>
+    <string name="playback_stop_speaker">Stop speaker</string>
+    <string name="playback_channel_name">Playback</string>
+    <string name="playback_channel_description">Shown while this phone is acting as an audio output</string>
+    <string name="playback_speaker_title">Baton speaker</string>
+    <string name="playback_phone_audio">This phone is playing the session audio</string>
+    <string name="playback_unknown_artist">Unknown artist</string>
+    <string name="playback_paused">Paused · %1$s</string>
+    <string name="playback_previous">Previous</string>
+    <string name="playback_pause">Pause</string>
+    <string name="playback_play">Play</string>
+    <string name="playback_next">Next</string>
+    <string name="playback_stop">Stop</string>
+</resources>

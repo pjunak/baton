@@ -1,0 +1,8 @@
+<resources>
+    <string name="update_error_source">Update source is misconfigured.</string>
+    <string name="update_error_check">Couldn’t check GitHub — %1$s</string>
+    <string name="update_error_network">network error</string>
+    <string name="update_error_no_apk">The latest release has no APK attached.</string>
+    <string name="update_error_download">Download failed — %1$s</string>
+    <string name="update_error_installer">Couldn’t open the installer — %1$s</string>
+</resources>

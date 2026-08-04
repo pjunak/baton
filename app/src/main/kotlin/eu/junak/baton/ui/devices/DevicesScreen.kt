@@ -15,13 +15,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.Tablet
 import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material.icons.filled.VolumeDown
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,10 +40,20 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import eu.junak.baton.R
 import eu.junak.baton.ui.devices.DevicesViewModel.DeviceRow
 
 /**
@@ -54,20 +64,24 @@ import eu.junak.baton.ui.devices.DevicesViewModel.DeviceRow
 @Composable
 fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
+    val title = stringResource(R.string.devices_title)
 
     Column(
         Modifier
             .fillMaxWidth()
+            .semantics { paneTitle = title }
             .padding(bottom = 24.dp),
     ) {
         Text(
-            text = "Output devices",
+            text = title,
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
         )
         if (ui.devices.isEmpty()) {
             Text(
-                text = if (ui.connected) "No devices connected" else "Connecting…",
+                text = stringResource(
+                    if (ui.connected) R.string.devices_empty else R.string.connection_connecting,
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(24.dp),
@@ -93,6 +107,8 @@ private fun DeviceCard(
     onToggle: (Boolean) -> Unit,
     onVolume: (Float) -> Unit,
 ) {
+    val deviceLabel = shortDeviceLabel(device.name)
+    val outputDescription = stringResource(R.string.devices_output_toggle, deviceLabel)
     Column(
         Modifier
             .fillMaxWidth()
@@ -105,17 +121,22 @@ private fun DeviceCard(
             )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(shortDeviceLabel(device.name), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(deviceLabel, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     text = deviceSubtitle(device),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Switch(checked = device.isActiveOutput, onCheckedChange = onToggle, enabled = enabled)
+            Switch(
+                checked = device.isActiveOutput,
+                onCheckedChange = onToggle,
+                enabled = enabled,
+                modifier = Modifier.semantics { contentDescription = outputDescription },
+            )
         }
         if (device.isActiveOutput) {
-            DeviceVolume(device.volume, enabled, onVolume)
+            DeviceVolume(deviceLabel, device.volume, enabled, onVolume)
         }
     }
 }
@@ -126,7 +147,12 @@ private fun DeviceCard(
  * rather than the chunky default Material slider, for a cleaner look in the device sheet.
  */
 @Composable
-private fun DeviceVolume(volume: Float, enabled: Boolean, onVolume: (Float) -> Unit) {
+private fun DeviceVolume(
+    deviceLabel: String,
+    volume: Float,
+    enabled: Boolean,
+    onVolume: (Float) -> Unit,
+) {
     var dragFrac by remember { mutableStateOf<Float?>(null) }
     var widthPx by remember { mutableIntStateOf(0) }
     val frac = (dragFrac ?: volume).coerceIn(0f, 1f)
@@ -134,6 +160,8 @@ private fun DeviceVolume(volume: Float, enabled: Boolean, onVolume: (Float) -> U
     val fillColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     val iconTint = MaterialTheme.colorScheme.onSurfaceVariant
     val thumbOffset = with(LocalDensity.current) { (widthPx * frac).toDp() } - 7.dp
+    val volumeDescription = stringResource(R.string.devices_volume, deviceLabel)
+    val volumeState = stringResource(R.string.volume_percent, (frac * 100).toInt())
 
     Row(
         modifier = Modifier
@@ -141,12 +169,26 @@ private fun DeviceVolume(volume: Float, enabled: Boolean, onVolume: (Float) -> U
             .padding(top = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.VolumeDown, contentDescription = null, modifier = Modifier.size(18.dp), tint = iconTint)
+        Icon(Icons.AutoMirrored.Filled.VolumeDown, contentDescription = null, modifier = Modifier.size(18.dp), tint = iconTint)
         Box(
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 12.dp)
-                .height(24.dp)
+                .height(48.dp)
+                .semantics {
+                    contentDescription = volumeDescription
+                    stateDescription = volumeState
+                    progressBarRangeInfo = ProgressBarRangeInfo(frac, 0f..1f)
+                    if (!enabled) disabled()
+                    setProgress { target ->
+                        if (!enabled) {
+                            false
+                        } else {
+                            onVolume(target.coerceIn(0f, 1f))
+                            true
+                        }
+                    }
+                }
                 .onSizeChanged { widthPx = it.width }
                 .pointerInput(enabled, widthPx) {
                     if (!enabled || widthPx <= 0) return@pointerInput
@@ -188,13 +230,16 @@ private fun DeviceVolume(volume: Float, enabled: Boolean, onVolume: (Float) -> U
                     .background(fillColor),
             )
         }
-        Icon(Icons.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp), tint = iconTint)
+        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp), tint = iconTint)
     }
 }
 
+@Composable
 private fun deviceSubtitle(device: DeviceRow): String {
-    val role = if (device.isActiveOutput) "Active output" else "Idle"
-    return if (device.isThisDevice) "This device · $role" else role
+    val role = stringResource(
+        if (device.isActiveOutput) R.string.devices_active_output else R.string.devices_idle,
+    )
+    return if (device.isThisDevice) stringResource(R.string.devices_this_device, role) else role
 }
 
 /**

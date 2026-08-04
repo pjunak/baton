@@ -20,12 +20,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import eu.junak.baton.R
 
 @Composable
 fun SetupScreen(
@@ -45,7 +47,7 @@ fun SetupScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "Connect to your music server",
+                text = stringResource(R.string.setup_title),
                 style = MaterialTheme.typography.headlineSmall,
             )
             Spacer(Modifier.height(24.dp))
@@ -55,8 +57,8 @@ fun SetupScreen(
                     OutlinedTextField(
                         value = ui.url,
                         onValueChange = viewModel::onUrlChange,
-                        label = { Text("Server address") },
-                        placeholder = { Text("music.example.com") },
+                        label = { Text(stringResource(R.string.setup_server_address)) },
+                        placeholder = { Text(stringResource(R.string.setup_server_placeholder)) },
                         singleLine = true,
                         enabled = !ui.busy,
                         keyboardOptions = KeyboardOptions(
@@ -71,7 +73,7 @@ fun SetupScreen(
                         enabled = !ui.busy && ui.url.isNotBlank(),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Continue")
+                        Text(stringResource(R.string.action_continue))
                     }
                 }
 
@@ -79,7 +81,7 @@ fun SetupScreen(
                     OutlinedTextField(
                         value = ui.username,
                         onValueChange = viewModel::onUsernameChange,
-                        label = { Text("Username") },
+                        label = { Text(stringResource(R.string.setup_username)) },
                         singleLine = true,
                         enabled = !ui.busy,
                         modifier = Modifier.fillMaxWidth(),
@@ -88,7 +90,7 @@ fun SetupScreen(
                     OutlinedTextField(
                         value = ui.password,
                         onValueChange = viewModel::onPasswordChange,
-                        label = { Text("Password") },
+                        label = { Text(stringResource(R.string.setup_password)) },
                         singleLine = true,
                         enabled = !ui.busy,
                         visualTransformation = PasswordVisualTransformation(),
@@ -104,10 +106,10 @@ fun SetupScreen(
                         enabled = !ui.busy && ui.username.isNotBlank() && ui.password.isNotBlank(),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Sign in")
+                        Text(stringResource(R.string.setup_sign_in))
                     }
                     TextButton(onClick = viewModel::back, enabled = !ui.busy) {
-                        Text("Use a different server")
+                        Text(stringResource(R.string.setup_different_server))
                     }
                 }
             }

@@ -12,11 +12,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -34,10 +34,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import eu.junak.baton.R
 import eu.junak.baton.core.model.Track
 import eu.junak.baton.ui.components.TrackArtwork
 
@@ -49,7 +52,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
         OutlinedTextField(
             value = ui.query,
             onValueChange = viewModel::onQueryChange,
-            label = { Text("Search library") },
+            label = { Text(stringResource(R.string.library_search)) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             singleLine = true,
             modifier = Modifier
@@ -67,7 +70,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
             ui.searchResults != null -> {
                 val results = ui.searchResults.orEmpty()
                 if (results.isEmpty()) {
-                    Centered { Text("No matches", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Centered { Text(stringResource(R.string.library_no_matches), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 } else {
                     LazyColumn(Modifier.fillMaxSize()) {
                         items(results, key = { "s:${it.id}" }) { track ->
@@ -81,8 +84,8 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                 if (ui.path.isNotEmpty()) {
                     item {
                         ListItem(
-                            headlineContent = { Text("Up") },
-                            supportingContent = { Text("/${ui.path}") },
+                            headlineContent = { Text(stringResource(R.string.library_up)) },
+                            supportingContent = { Text(stringResource(R.string.library_path, ui.path)) },
                             leadingContent = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
                             modifier = Modifier.clickable { viewModel.goUp() },
                         )
@@ -91,7 +94,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                 if (ui.folders.isNotEmpty() || ui.tracks.isNotEmpty()) {
                     item {
                         ListItem(
-                            headlineContent = { Text("Play this folder") },
+                            headlineContent = { Text(stringResource(R.string.library_play_folder)) },
                             leadingContent = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
                             modifier = Modifier.clickable { viewModel.playCurrentFolder() },
                         )
@@ -100,7 +103,15 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                 items(ui.folders, key = { "f:${it.path}" }) { folder ->
                     ListItem(
                         headlineContent = { Text(folder.name) },
-                        supportingContent = { Text("${folder.trackCount} tracks") },
+                        supportingContent = {
+                            Text(
+                                pluralStringResource(
+                                    R.plurals.library_track_count,
+                                    folder.trackCount,
+                                    folder.trackCount,
+                                ),
+                            )
+                        },
                         leadingContent = { Icon(Icons.Filled.Folder, contentDescription = null) },
                         modifier = Modifier.clickable { viewModel.openFolder(folder) },
                     )
@@ -111,7 +122,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                 if (ui.folders.isEmpty() && ui.tracks.isEmpty()) {
                     item {
                         Text(
-                            text = "This folder is empty",
+                            text = stringResource(R.string.library_folder_empty),
                             modifier = Modifier.padding(24.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -132,22 +143,29 @@ private fun TrackRow(
     onInterrupt: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val playLabel = stringResource(R.string.library_play_track, track.effectiveTitle)
+    val optionsLabel = stringResource(R.string.library_track_options, track.effectiveTitle)
     Box {
         ListItem(
             leadingContent = { TrackArtwork(coverUrl, Modifier.size(44.dp), corner = 6.dp) },
             headlineContent = { Text(track.effectiveTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            supportingContent = { Text(track.artist.ifBlank { "Unknown artist" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            supportingContent = { Text(track.artist.ifBlank { stringResource(R.string.unknown_artist) }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             trailingContent = {
                 IconButton(onClick = onEnqueue) {
-                    Icon(Icons.Filled.PlaylistAdd, contentDescription = "Add to queue")
+                    Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = stringResource(R.string.library_add_queue))
                 }
             },
             // Tap plays now; long-press opens the fuller action menu (queue / interrupt).
-            modifier = Modifier.combinedClickable(onClick = onPlay, onLongClick = { menuOpen = true }),
+            modifier = Modifier.combinedClickable(
+                onClickLabel = playLabel,
+                onClick = onPlay,
+                onLongClickLabel = optionsLabel,
+                onLongClick = { menuOpen = true },
+            ),
         )
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(
-                text = { Text("Play now") },
+                text = { Text(stringResource(R.string.library_play_now)) },
                 onClick = {
                     menuOpen = false
                     onPlay()
@@ -155,15 +173,15 @@ private fun TrackRow(
                 leadingIcon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
             )
             DropdownMenuItem(
-                text = { Text("Add to queue") },
+                text = { Text(stringResource(R.string.library_add_queue)) },
                 onClick = {
                     menuOpen = false
                     onEnqueue()
                 },
-                leadingIcon = { Icon(Icons.Filled.PlaylistAdd, contentDescription = null) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null) },
             )
             DropdownMenuItem(
-                text = { Text("Play as interrupt") },
+                text = { Text(stringResource(R.string.library_play_interrupt)) },
                 onClick = {
                     menuOpen = false
                     onInterrupt()

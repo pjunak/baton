@@ -199,7 +199,7 @@ class PlaybackService : Service() {
             .setCustomLayout(
                 listOf(
                     CommandButton.Builder()
-                        .setDisplayName("Stop speaker")
+                        .setDisplayName(getString(R.string.playback_stop_speaker))
                         .setIconResId(R.drawable.ic_stat_stop)
                         .setSessionCommand(stopCommand)
                         .build(),
@@ -363,9 +363,9 @@ class PlaybackService : Service() {
     private fun createChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Playback",
+            getString(R.string.playback_channel_name),
             NotificationManager.IMPORTANCE_LOW,
-        ).apply { description = "Shown while this phone is acting as an audio output" }
+        ).apply { description = getString(R.string.playback_channel_description) }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
@@ -423,7 +423,10 @@ class PlaybackService : Service() {
         val track = trackCache[trackId]
         val art = artCache[trackId]
         val metadata = MediaMetadata.Builder()
-            .setTitle(track?.effectiveTitle?.takeIf { it.isNotBlank() } ?: "Baton speaker")
+            .setTitle(
+                track?.effectiveTitle?.takeIf { it.isNotBlank() }
+                    ?: getString(R.string.playback_speaker_title),
+            )
             .setArtist(track?.artist?.takeIf { it.isNotBlank() })
             .setAlbumTitle(track?.album?.takeIf { it.isNotBlank() })
             .apply {
@@ -452,11 +455,13 @@ class PlaybackService : Service() {
         val track = notifiedTrackId?.let { trackCache[it] }
         val art = notifiedTrackId?.let { artCache[it] }
         val playing = notifiedPlaying
-        val title = track?.effectiveTitle?.takeIf { it.isNotBlank() } ?: "Baton speaker"
+        val title = track?.effectiveTitle?.takeIf { it.isNotBlank() }
+            ?: getString(R.string.playback_speaker_title)
+        val unknownArtist = getString(R.string.playback_unknown_artist)
         val text = when {
-            track == null -> "This phone is playing the session audio"
-            playing -> track.artist.ifBlank { "Unknown artist" }
-            else -> "Paused · ${track.artist.ifBlank { "Unknown artist" }}"
+            track == null -> getString(R.string.playback_phone_audio)
+            playing -> track.artist.ifBlank { unknownArtist }
+            else -> getString(R.string.playback_paused, track.artist.ifBlank { unknownArtist })
         }
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
@@ -468,14 +473,26 @@ class PlaybackService : Service() {
             .setContentIntent(openAppIntent())
             // Actions for pre-13 renderers; Android 13+ derives its buttons from the
             // media session (RemotePlayer's commands + the Stop custom command).
-            .addAction(android.R.drawable.ic_media_previous, "Previous", serviceAction(ACTION_PREV, 2))
+            .addAction(
+                android.R.drawable.ic_media_previous,
+                getString(R.string.playback_previous),
+                serviceAction(ACTION_PREV, 2),
+            )
             .addAction(
                 if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
-                if (playing) "Pause" else "Play",
+                getString(if (playing) R.string.playback_pause else R.string.playback_play),
                 serviceAction(ACTION_PLAY_PAUSE, 3),
             )
-            .addAction(android.R.drawable.ic_media_next, "Next", serviceAction(ACTION_NEXT, 4))
-            .addAction(R.drawable.ic_stat_stop, "Stop", serviceAction(ACTION_STOP, 0))
+            .addAction(
+                android.R.drawable.ic_media_next,
+                getString(R.string.playback_next),
+                serviceAction(ACTION_NEXT, 4),
+            )
+            .addAction(
+                R.drawable.ic_stat_stop,
+                getString(R.string.playback_stop),
+                serviceAction(ACTION_STOP, 0),
+            )
         mediaSession?.let {
             builder.setStyle(
                 MediaStyleNotificationHelper.MediaStyle(it).setShowActionsInCompactView(0, 1, 2),

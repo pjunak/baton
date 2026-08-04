@@ -60,11 +60,21 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import eu.junak.baton.R
 import eu.junak.baton.core.model.LoopMode
 import eu.junak.baton.core.model.ShuffleMode
 import eu.junak.baton.core.sync.ConnectionStatus
@@ -73,6 +83,7 @@ import eu.junak.baton.ui.console.ConsoleViewModel.QueueEntry
 import eu.junak.baton.ui.devices.DevicePicker
 import eu.junak.baton.ui.theme.ActiveAccent
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,7 +105,7 @@ fun ConsoleScreen(viewModel: ConsoleViewModel = hiltViewModel()) {
             IconButton(onClick = { showDevices = true }) {
                 Icon(
                     imageVector = Icons.Filled.Speaker,
-                    contentDescription = "Output devices",
+                    contentDescription = stringResource(R.string.devices_title),
                     tint = if (ui.playingHere) ActiveAccent else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -115,7 +126,14 @@ fun ConsoleScreen(viewModel: ConsoleViewModel = hiltViewModel()) {
 
             item {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    TrackArtwork(ui.coverUrl, Modifier.size(240.dp), corner = 16.dp)
+                    TrackArtwork(
+                        url = ui.coverUrl,
+                        modifier = Modifier.size(240.dp),
+                        corner = 16.dp,
+                        description = ui.nowPlaying?.effectiveTitle?.let {
+                            stringResource(R.string.console_artwork_description, it)
+                        },
+                    )
                     Spacer(Modifier.height(20.dp))
                     NowPlaying(ui.nowPlaying?.effectiveTitle, ui.nowPlaying?.artist)
                 }
@@ -239,7 +257,9 @@ private fun ConnectionBanner(status: ConnectionStatus, failureDetail: String?) {
                     Spacer(Modifier.width(8.dp))
                 }
                 Text(
-                    text = if (connecting) "Connecting…" else "Disconnected — reconnecting",
+                    text = stringResource(
+                        if (connecting) R.string.connection_connecting else R.string.connection_reconnecting,
+                    ),
                     color = onContainer,
                     style = MaterialTheme.typography.labelLarge,
                 )
@@ -271,7 +291,8 @@ private fun NowPlaying(title: String?, artist: String?) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = artist?.ifBlank { "Unknown artist" } ?: "Unknown artist",
+                text = artist?.ifBlank { stringResource(R.string.unknown_artist) }
+                    ?: stringResource(R.string.unknown_artist),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -279,7 +300,7 @@ private fun NowPlaying(title: String?, artist: String?) {
             )
         } else {
             Text(
-                text = "Nothing playing",
+                text = stringResource(R.string.console_nothing_playing),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -293,15 +314,36 @@ private fun SeekLine(positionMs: Int, durationMs: Int, enabled: Boolean, onSeek:
     var dragFrac by remember { mutableStateOf<Float?>(null) }
     var widthPx by remember { mutableIntStateOf(0) }
     val frac = dragFrac ?: if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+    val displayedPositionMs = (frac * durationMs).roundToInt()
+    val seekDescription = stringResource(R.string.console_seek_description)
+    val seekState = stringResource(
+        R.string.console_seek_state,
+        formatTime(displayedPositionMs),
+        formatTime(durationMs),
+    )
     val active = MaterialTheme.colorScheme.primary
-    val inactive = MaterialTheme.colorScheme.error // DBG: was onSurfaceVariant @0.3f — bright to confirm render
+    val inactive = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
     val dotOffset = with(LocalDensity.current) { (widthPx * frac).toDp() } - 5.dp
 
     Column(Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(22.dp)
+                .height(48.dp)
+                .semantics {
+                    contentDescription = seekDescription
+                    stateDescription = seekState
+                    progressBarRangeInfo = ProgressBarRangeInfo(frac, 0f..1f)
+                    if (!enabled || durationMs <= 0) disabled()
+                    setProgress { target ->
+                        if (!enabled || durationMs <= 0) {
+                            false
+                        } else {
+                            onSeek((target.coerceIn(0f, 1f) * durationMs).roundToInt())
+                            true
+                        }
+                    }
+                }
                 .onSizeChanged { widthPx = it.width }
                 .pointerInput(enabled, durationMs, widthPx) {
                     if (!enabled || durationMs <= 0 || widthPx <= 0) return@pointerInput
@@ -339,9 +381,14 @@ private fun SeekLine(positionMs: Int, durationMs: Int, enabled: Boolean, onSeek:
                     .background(active),
             )
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clearAndSetSemantics {},
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
             Text(
-                formatTime((frac * durationMs).toInt()),
+                formatTime(displayedPositionMs),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -371,11 +418,19 @@ private fun TransportRow(
     ) {
         ShuffleToggle(shuffle, enabled = enabled, onClick = onShuffle)
         IconButton(onClick = onPrevious, enabled = enabled) {
-            Icon(Icons.Filled.SkipPrevious, "Previous", Modifier.size(34.dp))
+            Icon(
+                Icons.Filled.SkipPrevious,
+                stringResource(R.string.console_previous),
+                Modifier.size(34.dp),
+            )
         }
         Spacer(Modifier.width(72.dp)) // the docked play button rests in this gap (in the nav bar below)
         IconButton(onClick = onNext, enabled = enabled) {
-            Icon(Icons.Filled.SkipNext, "Next", Modifier.size(34.dp))
+            Icon(
+                Icons.Filled.SkipNext,
+                stringResource(R.string.console_next),
+                Modifier.size(34.dp),
+            )
         }
         LoopToggle(loop, enabled = enabled, onClick = onLoop)
     }
@@ -403,11 +458,15 @@ private fun ToggleIcon(
 /** Shuffle control: off (dimmed) ↔ random (accent). */
 @Composable
 private fun ShuffleToggle(mode: ShuffleMode, enabled: Boolean, onClick: () -> Unit) {
-    val (icon, label) = when (mode) {
-        ShuffleMode.OFF -> Icons.Filled.Shuffle to "Shuffle off"
-        ShuffleMode.RANDOM -> Icons.Filled.Shuffle to "Shuffle: random order"
-    }
-    ToggleIcon(icon, label, active = mode != ShuffleMode.OFF, enabled = enabled, onClick = onClick)
+    ToggleIcon(
+        Icons.Filled.Shuffle,
+        stringResource(
+            if (mode == ShuffleMode.OFF) R.string.console_shuffle_off else R.string.console_shuffle_random,
+        ),
+        active = mode != ShuffleMode.OFF,
+        enabled = enabled,
+        onClick = onClick,
+    )
 }
 
 /** Repeat / continue control. A distinct glyph per loop mode so the active
@@ -415,13 +474,13 @@ private fun ShuffleToggle(mode: ShuffleMode, enabled: Boolean, onClick: () -> Un
  *  continue = ∞, repeat-all = repeat, repeat-one = repeat·1. */
 @Composable
 private fun LoopToggle(mode: LoopMode, enabled: Boolean, onClick: () -> Unit) {
-    val (icon, label) = when (mode) {
-        LoopMode.OFF -> Icons.Filled.Repeat to "Repeat off"
-        LoopMode.FOLLOW -> Icons.Filled.AllInclusive to "Continue into the library"
-        LoopMode.QUEUE -> Icons.Filled.Repeat to "Repeat all"
-        LoopMode.TRACK -> Icons.Filled.RepeatOne to "Repeat one"
+    val (icon, labelResource) = when (mode) {
+        LoopMode.OFF -> Icons.Filled.Repeat to R.string.console_repeat_off
+        LoopMode.FOLLOW -> Icons.Filled.AllInclusive to R.string.console_repeat_follow
+        LoopMode.QUEUE -> Icons.Filled.Repeat to R.string.console_repeat_all
+        LoopMode.TRACK -> Icons.Filled.RepeatOne to R.string.console_repeat_one
     }
-    ToggleIcon(icon, label, active = mode != LoopMode.OFF, enabled = enabled, onClick = onClick)
+    ToggleIcon(icon, stringResource(labelResource), active = mode != LoopMode.OFF, enabled = enabled, onClick = onClick)
 }
 
 @Composable
@@ -431,8 +490,8 @@ private fun QueueHeader(count: Int, enabled: Boolean, onClear: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Up next ($count)", style = MaterialTheme.typography.titleSmall)
-        TextButton(onClick = onClear, enabled = enabled) { Text("Clear") }
+        Text(stringResource(R.string.console_up_next, count), style = MaterialTheme.typography.titleSmall)
+        TextButton(onClick = onClear, enabled = enabled) { Text(stringResource(R.string.action_clear)) }
     }
 }
 
@@ -440,11 +499,11 @@ private fun QueueHeader(count: Int, enabled: Boolean, onClear: () -> Unit) {
 private fun QueueRow(entry: QueueEntry, coverUrl: String?, enabled: Boolean, onRemove: () -> Unit) {
     ListItem(
         leadingContent = { TrackArtwork(coverUrl, Modifier.size(44.dp), corner = 6.dp) },
-        headlineContent = { Text(entry.track?.effectiveTitle ?: "Track #${entry.trackId}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { Text(entry.track?.artist?.ifBlank { "Unknown artist" } ?: "Unknown artist", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        headlineContent = { Text(entry.track?.effectiveTitle ?: stringResource(R.string.track_fallback, entry.trackId), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text(entry.track?.artist?.ifBlank { stringResource(R.string.unknown_artist) } ?: stringResource(R.string.unknown_artist), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingContent = {
             IconButton(onClick = onRemove, enabled = enabled) {
-                Icon(Icons.Filled.Close, contentDescription = "Remove from queue")
+                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.console_remove_queue))
             }
         },
     )

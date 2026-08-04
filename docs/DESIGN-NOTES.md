@@ -31,12 +31,10 @@ connection honesty, and reliable controls matter more than decorative density.
 
 ### P1 — accessibility and input semantics
 
-- Add progress/adjustment semantics to the custom seek and device-volume controls, including
-  descriptive labels and announced values.
-- Review artwork descriptions: keep genuinely decorative thumbnails silent, but describe the
-  large now-playing artwork where it adds useful context.
-- Move remaining user-visible literals into string resources and verify screen-reader traversal,
-  switch semantics, disabled-state contrast, and minimum touch targets.
+- Run a manual TalkBack and Switch Access pass on a physical phone. Verify traversal order,
+  adjustable seek/volume actions, disabled-state announcements and contrast, and the output-sheet
+  pane transition. The custom controls, output switches, navigation tabs, artwork descriptions,
+  long-press actions, 48dp interaction regions, and user-visible string resources are implemented.
 
 ### P2 — queue and library clarity
 

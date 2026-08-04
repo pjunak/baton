@@ -1,6 +1,7 @@
 package eu.junak.baton.ui.main
 
-import androidx.compose.foundation.clickable
+import androidx.annotation.StringRes
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -53,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dagger.hilt.android.lifecycle.HiltViewModel
+import eu.junak.baton.R
 import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
@@ -72,11 +78,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
-private enum class MainTab(val label: String, val icon: ImageVector) {
-    CONSOLE("Console", Icons.Filled.PlayCircle),
-    LIBRARY("Library", Icons.Filled.LibraryMusic),
-    SESSION("Session", Icons.Filled.GraphicEq),
-    SETTINGS("Settings", Icons.Filled.Settings),
+private enum class MainTab(@StringRes val label: Int, val icon: ImageVector) {
+    CONSOLE(R.string.tab_console, Icons.Filled.PlayCircle),
+    LIBRARY(R.string.tab_library, Icons.Filled.LibraryMusic),
+    SESSION(R.string.tab_session, Icons.Filled.GraphicEq),
+    SETTINGS(R.string.tab_settings, Icons.Filled.Settings),
 }
 
 /** App shell state: WS error frames (snackbar) + the global play/pause docked in the nav bar. */
@@ -244,7 +250,9 @@ private fun DockedNavBar(
         ) {
             Icon(
                 imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = if (isPlaying) "Pause" else "Play",
+                contentDescription = stringResource(
+                    if (isPlaying) R.string.action_pause else R.string.action_play,
+                ),
                 modifier = Modifier.size(32.dp),
             )
         }
@@ -259,18 +267,23 @@ private fun RowScope.NavItem(
     onClick: () -> Unit,
 ) {
     val color = if (selected) ActiveAccent else MaterialTheme.colorScheme.onSurfaceVariant
+    val label = stringResource(tab.label)
+    val badgeDescription = if (badge) stringResource(R.string.update_available_badge) else null
     Column(
         modifier = Modifier
             .weight(1f)
             .fillMaxHeight()
-            .clickable(onClick = onClick),
+            .selectable(selected = selected, onClick = onClick, role = Role.Tab)
+            .semantics(mergeDescendants = true) {
+                badgeDescription?.let { stateDescription = it }
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         BadgedBox(badge = { if (badge) Badge() }) {
-            Icon(tab.icon, contentDescription = tab.label, tint = color)
+            Icon(tab.icon, contentDescription = null, tint = color)
         }
         Spacer(Modifier.height(2.dp))
-        Text(tab.label, style = MaterialTheme.typography.labelSmall, color = color)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = color)
     }
 }

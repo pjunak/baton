@@ -1,8 +1,11 @@
 package eu.junak.baton.ui.library
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import eu.junak.baton.R
 import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.model.Track
 import eu.junak.baton.core.network.MediaUrls
@@ -32,6 +35,7 @@ class LibraryViewModel @Inject constructor(
     private val libraryApi: LibraryApi,
     private val syncClient: SyncClient,
     private val mediaUrls: MediaUrls,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     data class UiState(
@@ -85,7 +89,12 @@ class LibraryViewModel @Inject constructor(
                     }
                 }
                 .onFailure { e ->
-                    _ui.update { it.copy(loading = false, error = e.message ?: "Couldn't load this folder.") }
+                    _ui.update {
+                        it.copy(
+                            loading = false,
+                            error = e.message ?: context.getString(R.string.library_load_error),
+                        )
+                    }
                 }
         }
     }

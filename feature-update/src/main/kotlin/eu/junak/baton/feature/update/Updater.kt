@@ -83,19 +83,26 @@ class Updater @Inject constructor(
     }
 
     private suspend fun resolveLatest(): UpdateState {
-        val repo = repoParts() ?: return UpdateState.Error("Update source is misconfigured.")
+        val repo = repoParts() ?: return UpdateState.Error(
+            context.getString(R.string.update_error_source),
+        )
         val release = runCatching { gitHubApi.latestRelease(repo.first, repo.second) }.getOrElse { e ->
             // A 404 from /releases/latest just means no full release is published yet — not an error.
             return if (e is HttpException && e.code() == 404) {
                 UpdateState.UpToDate
             } else {
-                UpdateState.Error("Couldn't check GitHub — ${e.message ?: "network error"}")
+                UpdateState.Error(
+                    context.getString(
+                        R.string.update_error_check,
+                        e.message ?: context.getString(R.string.update_error_network),
+                    ),
+                )
             }
         }
         val latest = release.tagName.removePrefix("v").trim()
         val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
         return when {
-            apk == null -> UpdateState.Error("The latest release has no APK attached.")
+            apk == null -> UpdateState.Error(context.getString(R.string.update_error_no_apk))
             isNewerVersion(latest, currentVersion()) ->
                 UpdateState.Available(latest, release.body?.takeIf { it.isNotBlank() }, apk.browserDownloadUrl)
             else -> UpdateState.UpToDate
@@ -115,7 +122,11 @@ class Updater @Inject constructor(
                     _state.value = UpdateState.ReadyToInstall(dest, available.version)
                     install(dest)
                 }
-                .onFailure { _state.value = UpdateState.Error("Download failed — ${it.message}") }
+                .onFailure {
+                    _state.value = UpdateState.Error(
+                        context.getString(R.string.update_error_download, it.message),
+                    )
+                }
         }
     }
 
@@ -141,7 +152,11 @@ class Updater @Inject constructor(
                     .setDataAndType(uri, "application/vnd.android.package-archive")
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
             )
-        }.onFailure { _state.value = UpdateState.Error("Couldn't open the installer — ${it.message}") }
+        }.onFailure {
+            _state.value = UpdateState.Error(
+                context.getString(R.string.update_error_installer, it.message),
+            )
+        }
     }
 
     /** Reset back to the idle "Check for updates" affordance. */

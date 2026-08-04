@@ -2,7 +2,7 @@
 // reconciler that maps PlayerState onto ExoPlayer (interrupt overrides
 // ambient; seek only on track change or a big jump). The session's transport
 // routes to the SERVER (lock screen / media buttons control the room, not the
-// local mirror). Active only when this device is a designated output.
+// local mirror). Active only while the local speaker role is enabled.
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.ksp)
