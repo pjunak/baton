@@ -3,14 +3,17 @@ package eu.junak.baton.ui.library
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -18,14 +21,18 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -81,24 +88,18 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
             }
 
             else -> LazyColumn(Modifier.fillMaxSize()) {
-                if (ui.path.isNotEmpty()) {
+                if (ui.path.isNotEmpty() || ui.folders.isNotEmpty() || ui.tracks.isNotEmpty()) {
                     item {
-                        ListItem(
-                            headlineContent = { Text(stringResource(R.string.library_up)) },
-                            supportingContent = { Text(stringResource(R.string.library_path, ui.path)) },
-                            leadingContent = { Icon(Icons.Filled.ArrowUpward, contentDescription = null) },
-                            modifier = Modifier.clickable { viewModel.goUp() },
+                        FolderActions(
+                            path = ui.path,
+                            canPlay = ui.folders.isNotEmpty() || ui.tracks.isNotEmpty(),
+                            onUp = viewModel::goUp,
+                            onPlay = viewModel::playCurrentFolder,
                         )
                     }
                 }
-                if (ui.folders.isNotEmpty() || ui.tracks.isNotEmpty()) {
-                    item {
-                        ListItem(
-                            headlineContent = { Text(stringResource(R.string.library_play_folder)) },
-                            leadingContent = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
-                            modifier = Modifier.clickable { viewModel.playCurrentFolder() },
-                        )
-                    }
+                if (ui.folders.isNotEmpty()) {
+                    item { LibrarySectionHeader(stringResource(R.string.library_folders)) }
                 }
                 items(ui.folders, key = { "f:${it.path}" }) { folder ->
                     ListItem(
@@ -116,6 +117,9 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                         modifier = Modifier.clickable { viewModel.openFolder(folder) },
                     )
                 }
+                if (ui.tracks.isNotEmpty()) {
+                    item { LibrarySectionHeader(stringResource(R.string.library_tracks)) }
+                }
                 items(ui.tracks, key = { "t:${it.id}" }) { track ->
                     TrackRow(track, viewModel.coverUrl(track.id), { viewModel.playTrack(track) }, { viewModel.enqueue(track) }, { viewModel.playInterrupt(track) })
                 }
@@ -131,6 +135,66 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
             }
         }
     }
+}
+
+@Composable
+private fun FolderActions(path: String, canPlay: Boolean, onUp: () -> Unit, onPlay: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.library_folder_actions),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            if (path.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.library_path, path),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (path.isNotEmpty()) {
+                    OutlinedButton(
+                        onClick = onUp,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        ),
+                    ) {
+                        Icon(Icons.Filled.ArrowUpward, contentDescription = null)
+                        Text(stringResource(R.string.library_up), Modifier.padding(start = 8.dp))
+                    }
+                }
+                if (canPlay) {
+                    FilledTonalButton(onClick = onPlay) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                        Text(stringResource(R.string.library_play_folder), Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibrarySectionHeader(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)

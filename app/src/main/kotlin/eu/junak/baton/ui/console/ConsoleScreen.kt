@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AllInclusive
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
@@ -47,6 +50,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,15 +59,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.setProgress
@@ -72,6 +79,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import eu.junak.baton.R
@@ -144,8 +152,12 @@ fun ConsoleScreen(viewModel: ConsoleViewModel = hiltViewModel()) {
                 itemsIndexed(ui.queue, key = { index, entry -> "q:$index:${entry.trackId}" }) { index, entry ->
                     QueueRow(
                         entry = entry,
+                        index = index,
+                        queueSize = ui.queue.size,
                         coverUrl = viewModel.coverUrl(entry.trackId),
                         enabled = ui.connected,
+                        onPlay = { viewModel.jumpToQueue(index) },
+                        onMove = viewModel::moveQueueItem,
                         onRemove = { viewModel.removeFromQueue(index) },
                     )
                 }
@@ -496,16 +508,81 @@ private fun QueueHeader(count: Int, enabled: Boolean, onClear: () -> Unit) {
 }
 
 @Composable
-private fun QueueRow(entry: QueueEntry, coverUrl: String?, enabled: Boolean, onRemove: () -> Unit) {
+private fun QueueRow(
+    entry: QueueEntry,
+    index: Int,
+    queueSize: Int,
+    coverUrl: String?,
+    enabled: Boolean,
+    onPlay: () -> Unit,
+    onMove: (Int, Int) -> Unit,
+    onRemove: () -> Unit,
+) {
+    var dragOffset by remember(index) { mutableFloatStateOf(0f) }
+    var rowHeightPx by remember(index) { mutableIntStateOf(0) }
+    val title = entry.track?.effectiveTitle ?: stringResource(R.string.track_fallback, entry.trackId)
+    val playLabel = stringResource(R.string.console_play_queue, title)
+    val reorderLabel = stringResource(R.string.console_reorder_queue, title)
+    val moveUpLabel = stringResource(R.string.console_move_queue_up)
+    val moveDownLabel = stringResource(R.string.console_move_queue_down)
+
     ListItem(
         leadingContent = { TrackArtwork(coverUrl, Modifier.size(44.dp), corner = 6.dp) },
-        headlineContent = { Text(entry.track?.effectiveTitle ?: stringResource(R.string.track_fallback, entry.trackId), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = { Text(entry.track?.artist?.ifBlank { stringResource(R.string.unknown_artist) } ?: stringResource(R.string.unknown_artist), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingContent = {
-            IconButton(onClick = onRemove, enabled = enabled) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.console_remove_queue))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .semantics {
+                            contentDescription = reorderLabel
+                            if (!enabled) disabled()
+                            customActions = buildList {
+                                if (enabled && index > 0) {
+                                    add(CustomAccessibilityAction(moveUpLabel) {
+                                        onMove(index, index - 1)
+                                        true
+                                    })
+                                }
+                                if (enabled && index < queueSize - 1) {
+                                    add(CustomAccessibilityAction(moveDownLabel) {
+                                        onMove(index, index + 1)
+                                        true
+                                    })
+                                }
+                            }
+                        }
+                        .pointerInput(index, queueSize, enabled, rowHeightPx) {
+                            if (!enabled || rowHeightPx <= 0) return@pointerInput
+                            detectDragGesturesAfterLongPress(
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    dragOffset += amount.y
+                                },
+                                onDragEnd = {
+                                    val target = (index + (dragOffset / rowHeightPx).roundToInt())
+                                        .coerceIn(0, queueSize - 1)
+                                    dragOffset = 0f
+                                    if (target != index) onMove(index, target)
+                                },
+                                onDragCancel = { dragOffset = 0f },
+                            )
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.DragHandle, contentDescription = null)
+                }
+                IconButton(onClick = onRemove, enabled = enabled) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.console_remove_queue))
+                }
             }
         },
+        modifier = Modifier
+            .zIndex(if (dragOffset == 0f) 0f else 1f)
+            .graphicsLayer { translationY = dragOffset }
+            .onSizeChanged { rowHeightPx = it.height }
+            .clickable(enabled = enabled, onClickLabel = playLabel, onClick = onPlay),
     )
 }
 

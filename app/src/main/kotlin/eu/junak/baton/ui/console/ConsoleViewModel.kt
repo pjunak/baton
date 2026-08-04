@@ -253,11 +253,25 @@ class ConsoleViewModel @Inject constructor(
 
     fun clearQueue() = syncClient.send(Action.AmbientClearQueue)
 
+    /** Play an exact queue slot now; the server atomically preserves only its tail. */
+    fun jumpToQueue(index: Int) {
+        val ids = syncClient.state.value?.ambient?.queue ?: return
+        if (index !in ids.indices) return
+        syncClient.send(Action.AmbientJumpQueue(position = index))
+    }
+
     /** Remove the slot at [index] — index-based so duplicate track ids in the queue stay unambiguous. */
     fun removeFromQueue(index: Int) {
         val ids = syncClient.state.value?.ambient?.queue ?: return
         if (index !in ids.indices) return
         syncClient.send(Action.AmbientSetQueue(ids.toMutableList().apply { removeAt(index) }))
+    }
+
+    /** Move one queue slot while preserving duplicates and every other slot's order. */
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        val ids = syncClient.state.value?.ambient?.queue ?: return
+        val reordered = moveQueueSlot(ids, fromIndex, toIndex) ?: return
+        syncClient.send(Action.AmbientSetQueue(reordered))
     }
 
     /** Cover-art URL for a track id (used by queue rows). */
@@ -267,4 +281,10 @@ class ConsoleViewModel @Inject constructor(
         const val STOP_TIMEOUT_MS = 5_000L
         const val TICK_MS = 500L
     }
+}
+
+/** Pure index-based reorder so repeated track ids remain distinct queue slots. */
+internal fun moveQueueSlot(ids: List<Int>, fromIndex: Int, toIndex: Int): List<Int>? {
+    if (fromIndex !in ids.indices || toIndex !in ids.indices || fromIndex == toIndex) return null
+    return ids.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
 }

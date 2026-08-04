@@ -63,6 +63,10 @@ sealed interface Action {
     data class AmbientSetQueue(val trackIds: List<Int> = emptyList()) : Action
 
     @Serializable
+    @SerialName("ambient_jump_queue")
+    data class AmbientJumpQueue(val position: Int) : Action
+
+    @Serializable
     @SerialName("ambient_enqueue")
     data class AmbientEnqueue(val trackId: Int, val position: Int? = null) : Action
 

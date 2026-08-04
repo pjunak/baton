@@ -26,6 +26,12 @@ connection honesty, and reliable controls matter more than decorative density.
 - Screen-off foreground playback while the local speaker role is enabled.
 - Honest loading, empty, error, and retry states for Library data.
 - State-driven shuffle/repeat treatments and a smooth dead-reckoned seek display.
+- Queue rows support exact tap-to-jump, drag reordering, accessible move actions, removal, and
+  clearing without confusing duplicate track IDs.
+- Library navigation and folder-level actions occupy a distinct control shelf above grouped
+  folder and track content.
+- The four Console end-of-queue states use explicit accessibility copy: off, continue into the
+  library, repeat the whole queue, and repeat the current track.
 
 ## Prioritized backlog
 
@@ -35,13 +41,6 @@ connection honesty, and reliable controls matter more than decorative density.
   adjustable seek/volume actions, disabled-state announcements and contrast, and the output-sheet
   pane transition. The custom controls, output switches, navigation tabs, artwork descriptions,
   long-press actions, 48dp interaction regions, and user-visible string resources are implemented.
-
-### P2 — queue and library clarity
-
-- Add queue tap-to-jump and drag-to-reorder. Rows currently support removal and clearing only.
-- Visually separate Library actions (Up, Play this folder) from folders and tracks.
-- Revisit the four-state repeat cycle in user-visible copy. Current icons and accessibility labels
-  distinguish off, continue, repeat all, and repeat one, but the behavior remains dense.
 
 ### P3 — consistency and responsive layout
 

@@ -23,6 +23,14 @@ class SerializationTest {
     }
 
     @Test
+    fun `queue jump serializes its exact zero based position`() {
+        assertEquals(
+            "{\"type\":\"ambient_jump_queue\",\"position\":2}",
+            ProtocolJson.encodeToString<Action>(Action.AmbientJumpQueue(position = 2)),
+        )
+    }
+
+    @Test
     fun `object action serializes to just the discriminator`() {
         assertEquals("{\"type\":\"pause\"}", ProtocolJson.encodeToString<Action>(Action.Pause))
     }
