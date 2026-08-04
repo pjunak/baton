@@ -9,8 +9,9 @@ sends typed actions. Keep server URLs and credentials runtime-configured.
 - [`README.md`](README.md) for supported features and build caveats.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for system design and flows.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) for durable design decisions.
-- The sibling `music/AGENTS.md` and `music/clients/README.md` before changing
-  the HTTP, WebSocket, device, or playback protocol.
+- The sibling [`music/AGENTS.md`](../music/AGENTS.md) and
+  [`music/clients/README.md`](../music/clients/README.md) before changing the
+  HTTP, WebSocket, device, or playback protocol.
 
 ## Commands
 
