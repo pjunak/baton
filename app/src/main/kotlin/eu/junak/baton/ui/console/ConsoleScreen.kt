@@ -51,11 +51,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,9 +102,20 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConsoleScreen(viewModel: ConsoleViewModel = hiltViewModel()) {
+fun ConsoleScreen(
+    openDevices: Boolean = false,
+    onOpenDevicesHandled: () -> Unit = {},
+    viewModel: ConsoleViewModel = hiltViewModel(),
+) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
-    var showDevices by remember { mutableStateOf(false) }
+    var showDevices by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(openDevices) {
+        if (openDevices) {
+            showDevices = true
+            onOpenDevicesHandled()
+        }
+    }
 
     // Screen-on is deliberately opt-in: the display is normally Baton's largest battery cost.
     KeepScreenOn(ui.keepConsoleAwake)

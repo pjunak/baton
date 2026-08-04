@@ -20,6 +20,8 @@ connection honesty, and reliable controls matter more than decorative density.
 
 - Large Console artwork plus Library and queue thumbnails.
 - A dominant docked play/pause control with secondary transport controls.
+- Starting playback with no active output moves to Console and opens the output picker rather than
+  silently advancing an inaudible server clock.
 - Opt-in Keep Console awake behavior.
 - Offline-disabled mutations and a prominent reconnect/disconnect banner.
 - Lifecycle-aware Console ticker and controller socket lifetime.

@@ -74,8 +74,9 @@ the phone speaker, wired audio, Bluetooth headphones, or Bluetooth speakers.
 ## Screens and data flow
 
 - **Setup:** HTTPS server URL, health probe, and operator login.
-- **Console:** cover art, now-playing metadata, seek, transport, shuffle/repeat, queue removal and
-  clearing, output picker, and the local speaker toggle. Mutating controls disable while offline.
+- **Console:** cover art, now-playing metadata, seek, transport, shuffle/repeat, queue jumping,
+  reordering, removal and clearing, plus the output picker. Starting playback with no active output
+  routes to that picker instead of sending an inaudible resume. Mutating controls disable offline.
 - **Library:** full folder hierarchy, folder contents, debounced search, play/enqueue, and cover
   thumbnails. Authoring stays in the web app.
 - **Session:** active mode, cues, soundboards and loops, EQ presets, and interrupts.

@@ -39,6 +39,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -108,7 +109,11 @@ class MainViewModel @Inject constructor(
         syncClient.disconnect()
     }
 
-    data class PlayState(val isPlaying: Boolean = false, val connected: Boolean = false)
+    data class PlayState(
+        val isPlaying: Boolean = false,
+        val connected: Boolean = false,
+        val hasActiveOutput: Boolean = false,
+    )
 
     val playState: StateFlow<PlayState> =
         combine(syncClient.state, syncClient.status) { state, status ->
@@ -116,6 +121,7 @@ class MainViewModel @Inject constructor(
                 // Interrupt overrides ambient on the outputs — reflect it so the icon matches.
                 isPlaying = state?.interrupt != null || state?.isPlaying == true,
                 connected = status == ConnectionStatus.CONNECTED,
+                hasActiveOutput = state?.activeOutputDeviceIds?.isNotEmpty() == true,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlayState())
 
@@ -149,6 +155,7 @@ fun MainScreen(
     viewModel: MainViewModel = hiltViewModel(),
 ) {
     var tabIndex by rememberSaveable { mutableIntStateOf(0) }
+    var openOutputPicker by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val playState by viewModel.playState.collectAsStateWithLifecycle()
     val updateAvailable by viewModel.updateAvailable.collectAsStateWithLifecycle()
@@ -190,7 +197,18 @@ fun MainScreen(
                 onSelect = { tabIndex = it },
                 isPlaying = playState.isPlaying,
                 enabled = playState.connected,
-                onPlayPause = viewModel::playPause,
+                onPlayPause = {
+                    if (shouldSelectOutputBeforePlay(
+                            isPlaying = playState.isPlaying,
+                            hasActiveOutput = playState.hasActiveOutput,
+                        )
+                    ) {
+                        tabIndex = MainTab.CONSOLE.ordinal
+                        openOutputPicker = true
+                    } else {
+                        viewModel.playPause()
+                    }
+                },
                 settingsBadge = updateAvailable,
             )
         },
@@ -202,7 +220,10 @@ fun MainScreen(
                 .padding(padding),
         ) {
             when (MainTab.entries[tabIndex.coerceIn(0, MainTab.entries.lastIndex)]) {
-                MainTab.CONSOLE -> ConsoleScreen()
+                MainTab.CONSOLE -> ConsoleScreen(
+                    openDevices = openOutputPicker,
+                    onOpenDevicesHandled = { openOutputPicker = false },
+                )
                 MainTab.LIBRARY -> LibraryScreen()
                 MainTab.SESSION -> SessionScreen()
                 MainTab.SETTINGS -> SettingsScreen(onSignedOut = onSignedOut)
@@ -210,6 +231,10 @@ fun MainScreen(
         }
     }
 }
+
+/** Pausing never needs an output; starting playback does. */
+internal fun shouldSelectOutputBeforePlay(isPlaying: Boolean, hasActiveOutput: Boolean): Boolean =
+    !isPlaying && !hasActiveOutput
 
 /**
  * Bottom nav with a center gap; the global play/pause rests in that gap, straddling the tab row
