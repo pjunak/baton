@@ -20,7 +20,7 @@ JBR is suitable.
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-.\gradlew.bat assembleDebug test
+.\gradlew.bat assembleDebug test lintDebug
 ```
 
 Useful narrower checks:
@@ -82,7 +82,7 @@ modules; core modules must not depend on Android UI or feature modules.
 - Pure protocol, reducer, and synchronization behavior belongs in JVM tests.
 - Add module-local tests for non-trivial state transitions and serialization.
 - Run the narrowest affected tests during development, then
-  `.\gradlew.bat assembleDebug test` before handoff.
+  `.\gradlew.bat assembleDebug test lintDebug` before handoff.
 - For protocol changes, verify against a live `music` instance: login,
   reconnect, transport, seek, queue, modes, devices, and optional speaker
   playback as applicable.

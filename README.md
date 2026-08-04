@@ -49,6 +49,12 @@ build-workflow caveats are load-bearing:
 2. Command-line builds need `JAVA_HOME` pointing at a JDK 17+ (Android Studio's bundled
    `jbr` works: `C:\Program Files\Android\Android Studio\jbr`).
 
+The full local/CI gate is:
+
+```powershell
+.\gradlew.bat assembleDebug test lintDebug
+```
+
 Typical loop: open in Android Studio → let it sync → **Run ▶** on an emulator or device → the app
 opens to the setup wizard.
 
@@ -108,4 +114,4 @@ Signing migration stays clean). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#
 
 ## License
 
-TBD.
+This repository is not currently offered under an open-source license.

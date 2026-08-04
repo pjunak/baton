@@ -125,13 +125,13 @@ The version catalog is the source of dependency and SDK versions. The current ba
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-.\gradlew.bat assembleDebug test
+.\gradlew.bat assembleDebug test lintDebug
 ```
 
 Use Android Studio Run, Build APK(s), or `assembleDebug`. Android Studio's Make Project action is
 not supported while it expects the removed `androidTestClasses` anchor task.
 
-- `.github/workflows/ci.yml` runs `assembleDebug test` for pushes and pull requests.
+- `.github/workflows/ci.yml` runs `assembleDebug test lintDebug` for pushes and pull requests.
 - `.github/workflows/release.yml` derives version name/code from a `v*` tag, materializes signing
   configuration from `KEYSTORE_BASE64`, `KEYSTORE_STORE_PASSWORD`, `KEYSTORE_KEY_ALIAS`, and
   `KEYSTORE_KEY_PASSWORD`, builds the minified release APK, and publishes a GitHub Release.

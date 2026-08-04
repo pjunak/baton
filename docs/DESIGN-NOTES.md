@@ -39,16 +39,16 @@ connection honesty, and reliable controls matter more than decorative density.
 - Landscape phones and large windows split Console into now-playing and queue/control panes;
   portrait phones retain the focused stacked layout.
 
-## Prioritized backlog
+## Remaining validation
 
-### P1 — accessibility and input semantics
+### Physical accessibility pass
 
 - Run a manual TalkBack and Switch Access pass on a physical phone. Verify traversal order,
   adjustable seek/volume actions, disabled-state announcements and contrast, and the output-sheet
   pane transition. The custom controls, output switches, navigation tabs, artwork descriptions,
   long-press actions, 48dp interaction regions, and user-visible string resources are implemented.
 
-### P4 — test and static-analysis coverage
+### Device-backed UI coverage
 
 - Add device-backed Compose UI tests when CI has an emulator or managed-device runner. Unit tests
   cover the responsive breakpoint policy, but gestures, pane layout, and TalkBack still need a
