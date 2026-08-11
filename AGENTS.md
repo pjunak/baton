@@ -90,5 +90,5 @@ modules; core modules must not depend on Android UI or feature modules.
   assumptions, or supported behavior change.
 
 Do not commit signing keys, server addresses, credentials, or generated local
-configuration. Do not commit, push, publish a release, or change signing
-configuration unless explicitly requested.
+configuration. The global Codex instructions govern task commits. Never push,
+publish a release, or change signing configuration unless explicitly requested.

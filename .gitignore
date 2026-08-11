@@ -56,14 +56,8 @@ Thumbs.db
 Desktop.ini
 
 # ─────────────────────────────────────────────────────────────────────────
-# Agent / AI tooling — agent-only, never published to GitHub. Mirrors the
-# `music` repo convention: the README is for humans; anything agent-facing
-# stays local. (Delete the CLAUDE.md lines if you'd rather version the
-# project-memory file so it's shared/committed instead.)
+# Local AI-tool state; shared project guidance lives in tracked AGENTS.md.
 # ─────────────────────────────────────────────────────────────────────────
-.claude/
-CLAUDE.md
-CLAUDE.local.md
 .aider*
 .cursor/
 .continue/
