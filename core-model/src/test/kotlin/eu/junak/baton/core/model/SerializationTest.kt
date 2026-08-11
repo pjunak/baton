@@ -50,6 +50,16 @@ class SerializationTest {
     }
 
     @Test
+    fun `preset action carries ordered ids`() {
+        assertEquals(
+            "{\"type\":\"set_active_presets\",\"preset_ids\":[\"cave\",\"radio\"]}",
+            ProtocolJson.encodeToString<Action>(
+                Action.SetActivePresets(listOf("cave", "radio")),
+            ),
+        )
+    }
+
+    @Test
     fun `nullable required field is written as null`() {
         // set_active_mode.mode_id is nullable-but-required: null means "clear".
         assertEquals(
@@ -64,6 +74,7 @@ class SerializationTest {
             {"type":"state_changed","state":{
               "revision":5,"is_playing":true,"volume":1.0,
               "default_device_volume":0.7,"device_volumes":{"tv-1":0.4},
+              "active_preset_ids":["cave"],"preset_revision":9,
               "connected_devices":[{"device_id":"tv-1","client_id":"tv-1","name":"TV","is_output":true}],
               "ambient":{"current_track_id":7,"queue":[7,8,9],"position_ms":1234,"loop":"follow"},
               "interrupt":null
@@ -76,6 +87,8 @@ class SerializationTest {
         assertEquals(1.0, state.volume, 0.0)
         assertEquals(0.7, state.defaultDeviceVolume ?: -1.0, 0.0)
         assertEquals(0.4, state.deviceVolumes["tv-1"] ?: -1.0, 0.0)
+        assertEquals(listOf("cave"), state.activePresetIds)
+        assertEquals(9, state.presetRevision)
         assertEquals("TV", state.connectedDevices.single().name)
         assertEquals(7, state.ambient.currentTrackId)
         assertEquals(listOf(7, 8, 9), state.ambient.queue)
@@ -91,6 +104,7 @@ class SerializationTest {
         val msg = ProtocolJson.decodeFromString<ServerMessage>(payload)
         assertTrue(msg is ServerMessage.StateSnapshot)
         assertNull((msg as ServerMessage.StateSnapshot).state.defaultDeviceVolume)
+        assertEquals(0, msg.state.presetRevision)
     }
 
     @Test

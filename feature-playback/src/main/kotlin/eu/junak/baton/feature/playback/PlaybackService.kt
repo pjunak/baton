@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
@@ -12,6 +13,7 @@ import android.graphics.BitmapFactory
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -21,8 +23,12 @@ import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
@@ -38,12 +44,16 @@ import eu.junak.baton.core.model.Track
 import eu.junak.baton.core.network.CoverArtLoader
 import eu.junak.baton.core.network.MediaUrls
 import eu.junak.baton.core.network.api.LibraryApi
+import eu.junak.baton.core.network.api.ModesApi
 import eu.junak.baton.core.sync.SyncClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.abs
@@ -71,6 +81,7 @@ class PlaybackService : Service() {
     @Inject lateinit var syncClient: SyncClient
     @Inject lateinit var mediaUrls: MediaUrls
     @Inject lateinit var libraryApi: LibraryApi
+    @Inject lateinit var modesApi: ModesApi
     @Inject lateinit var playbackController: PlaybackController
     @Inject lateinit var coverArtLoader: CoverArtLoader
 
@@ -79,6 +90,8 @@ class PlaybackService : Service() {
     private var mediaSession: MediaSession? = null
     private var loadedTrackId: Int? = null
     private var lastPositionEpoch: Int = -1
+    private val presetAudioProcessor = PresetAudioProcessor()
+    private val presetResolver by lazy { PresetResolver(modesApi::presets) }
 
     /** Live one-shot SFX players (fire-and-forget, layered over the music); each frees itself on end. */
     private val sfxPlayers = mutableListOf<MediaPlayer>()
@@ -138,7 +151,16 @@ class PlaybackService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        val exo = ExoPlayer.Builder(this)
+        val renderersFactory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioOutputPlaybackParams: Boolean,
+            ): AudioSink = DefaultAudioSink.Builder(context)
+                .setAudioProcessors(arrayOf<AudioProcessor>(presetAudioProcessor))
+                .build()
+        }
+        val exo = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -155,6 +177,45 @@ class PlaybackService : Service() {
         scope.launch {
             combine(syncClient.state, playbackController.enabled, ::Pair).collect { (state, enabled) ->
                 reconcile(state, enabled)
+            }
+        }
+
+        // Active ids are canonical state; the full racks are guest-readable
+        // REST manifests. Refetch on the dedicated content revision so live
+        // authoring updates an unchanged active id on this output too.
+        scope.launch {
+            var installedModeId: String? = null
+            combine(syncClient.state, playbackController.enabled) { state, enabled ->
+                if (!enabled || state == null) {
+                    null
+                } else {
+                    PresetSelection(
+                        modeId = state.activeModeId,
+                        presetIds = state.activePresetIds,
+                        presetRevision = state.presetRevision,
+                    )
+                }
+            }.distinctUntilChanged().collectLatest { selection ->
+                if (selection == null) {
+                    installedModeId = null
+                    presetResolver.clear()
+                    presetAudioProcessor.setEffects(emptyList())
+                    return@collectLatest
+                }
+                if (selection.modeId != installedModeId) {
+                    // Never let a previous mode's rack leak while its successor
+                    // is being fetched.
+                    presetAudioProcessor.setEffects(emptyList())
+                    installedModeId = selection.modeId
+                }
+                try {
+                    presetAudioProcessor.setEffects(presetResolver.resolve(selection))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    presetAudioProcessor.setEffects(emptyList())
+                    Log.e(TAG, "Failed to resolve active EQ presets; using dry playback", failure)
+                }
             }
         }
 
@@ -258,6 +319,7 @@ class PlaybackService : Service() {
             return
         }
 
+        presetAudioProcessor.setBypassed(state.interrupt != null)
         val outputVolume = outputVolume(state)
         player.volume = outputVolume.toFloat().coerceIn(0f, 1f)
 
@@ -302,6 +364,8 @@ class PlaybackService : Service() {
             it.stop()
         }
         loadedTrackId = null
+        presetAudioProcessor.setEffects(emptyList())
+        presetResolver.clear()
         releaseAllSfx()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -529,5 +593,6 @@ class PlaybackService : Service() {
         const val CUSTOM_ACTION_STOP = "eu.junak.baton.feature.playback.STOP_SPEAKER"
         const val SAME_POSITION_SLACK_MS = 250L
         const val ART_CACHE_MAX = 6
+        const val TAG = "PlaybackService"
     }
 }

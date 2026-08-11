@@ -143,3 +143,23 @@ screen-on behavior opt-in and Console-scoped.
 from a fresh snapshot on return. Speaker playback retains its foreground service, Media3 network
 wake mode, and socket regardless of the active Android audio route, so wired and Bluetooth output
 continue with the screen off.
+
+---
+
+## ADR-0010 — Render authored presets in a fixed native PCM stage
+
+**Context.** Baton exposed the canonical preset toggles but its phone-speaker role discarded the
+manifest effect rack and played dry audio. Android's platform equalizer is device-dependent and
+cannot represent the server's complete ordered rack (filters, delay, distortion, tremolo, and
+reverb), while recreating ExoPlayer on every toggle would interrupt playback.
+
+**Decision.** Fetch full mode-scoped manifests, invalidate their cache with
+`PlayerState.preset_revision`, and keep one custom Media3 PCM processor installed for ExoPlayer's
+lifetime. Swap immutable rack configurations at audio-buffer boundaries. Apply effects only to
+ambient music; bypass the rack for interrupt tracks and leave transient SFX dry, matching the web
+engine's routing.
+
+**Consequences.** Baton implements every effect type currently accepted by the server and remains
+dry if manifests cannot be resolved. DSP behavior is deterministic and covered by JVM response,
+timing, ordering, cache, and protocol tests. This does not implement crossfade: that requires two
+simultaneous ambient players and remains independent of the preset effect rack.

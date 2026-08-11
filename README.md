@@ -23,7 +23,7 @@ Like the server, Baton is **generic** — it bakes in *no* connection details. P
 | **Library** — browse folder tree, debounced search, play track/folder, enqueue | ✅ Working |
 | **Settings** — General / Playback / Updates tabs, console-awake opt-in, account + **sign-out**, server + "Open web app" | ✅ Working |
 | **Session** — modes, cues, soundboard (tap = fire, hold = loop), EQ presets, interrupts | ✅ Working |
-| **Devices + phone-as-speaker** (server-owned per-device volume, Play prompts when no output is active, Media3 notification) | ✅ Working |
+| **Devices + phone-as-speaker** (server-owned per-device volume, native preset effects, Play prompts when no output is active, Media3 notification) | ✅ Working |
 | **In-app updater** (GitHub Releases → system installer) | ✅ Working |
 | **CI + signed release** (GitHub Actions) | ✅ Working (needs the keystore secrets — see §12) |
 
@@ -86,8 +86,9 @@ core-network/    One shared OkHttpClient + encrypted CookieJar, Retrofit service
 core-sync/       SyncClient: the WebSocket → StateFlow<PlayerState> + send(Action), with
                  reconnect/backoff and the register handshake.
 feature-playback/ Foreground service + Media3 MediaSession: PlayerState→ExoPlayer reconciler
-                  (speaker role) with a media-style notification whose transport routes to the
-                  server (lock screen / media buttons control the room, not the local mirror).
+                  (speaker role), mode-preset manifest cache + native PCM effect rack, and a
+                  media-style notification whose transport routes to the server (lock screen /
+                  media buttons control the room, not the local mirror).
 feature-update/   GitHub Releases check → download-with-progress → system installer
                   (FileProvider + ACTION_VIEW). Silent check on launch badges the Settings tab.
 ```

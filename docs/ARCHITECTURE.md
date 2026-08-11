@@ -98,6 +98,7 @@ set. Because local audio is the real gate, the controller reasserts membership a
 `PlaybackService` contains:
 
 - one ExoPlayer for the active music/interrupt lane;
+- a permanently installed Media3 PCM processor for the active mode's ordered preset rack;
 - a MediaSession whose play, pause, seek-next, and seek-previous commands send server actions;
 - a media-style notification with metadata, artwork, transport, and a Stop speaker action;
 - transient `MediaPlayer` instances for overlapping `sfx_fired` events;
@@ -108,6 +109,14 @@ change loads and seeks; a changed `position_epoch` applies a deliberate seek; sa
 updates do not chase the materialized server clock. Protocol-v2 absolute device volume applies to
 music and SFX, with the legacy master-times-trim projection retained for old servers. Baton does
 not currently send output position reports.
+
+Effect-aware playback resolves `active_preset_ids` through the active mode's guest-readable preset
+manifest endpoint. It caches manifests by mode and `preset_revision`, flattens multiple racks in
+canonical active-id/declaration order, and fails dry on a load error or mode transition. The fixed
+PCM stage supports the server's current graphic EQ, low/high/band-pass, delay, distortion, tremolo,
+and reverb effects. Interrupt tracks bypass the ambient rack and transient SFX remain dry, matching
+the web engine's routing. The single-player native lane still cuts between tracks; rendering the
+canonical `crossfade_ms` remains a separate dual-ambient-player capability.
 
 ## Updater
 

@@ -119,6 +119,8 @@ data class PlayerState(
     val deviceVolumes: Map<String, Double> = emptyMap(),
     val activeSoundboardId: String? = null,
     val activePresetIds: List<String> = emptyList(),
+    /** Dedicated cache invalidation counter for mode-scoped preset manifests. */
+    val presetRevision: Int = 0,
     val crossfadeMs: Int = 0,
     val crossfadeType: CrossfadeType = CrossfadeType.LINEAR,
     val ambient: AmbientState = AmbientState(),

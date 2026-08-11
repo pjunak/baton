@@ -10,7 +10,7 @@ import eu.junak.baton.core.network.api.ModeSummary
 import eu.junak.baton.core.network.api.ModesApi
 import eu.junak.baton.core.network.api.PlaylistMeta
 import eu.junak.baton.core.network.api.PlaylistsApi
-import eu.junak.baton.core.network.api.PresetSummary
+import eu.junak.baton.core.network.api.PresetManifest
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
 import java.util.UUID
@@ -82,7 +82,7 @@ class SessionViewModel @Inject constructor(
     /** Everything fetched per active mode, replaced atomically on mode change. */
     private data class ModeData(
         val detail: ModeDetail? = null,
-        val presets: List<PresetSummary> = emptyList(),
+        val presets: List<PresetManifest> = emptyList(),
         val playlists: List<PlaylistMeta> = emptyList(),
     )
 

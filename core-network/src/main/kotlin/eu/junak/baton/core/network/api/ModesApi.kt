@@ -25,7 +25,7 @@ interface ModesApi {
 
     /** The mode's EQ presets (everything authored is per-mode). */
     @GET("api/modes/{id}/presets")
-    suspend fun presets(@Path("id") id: String): List<PresetSummary>
+    suspend fun presets(@Path("id") id: String): List<PresetManifest>
 }
 
 @Serializable
@@ -68,13 +68,41 @@ data class InterruptTemplate(
     val duckTo: Double? = null,
 )
 
-/** An EQ preset (id + label; the effect graph itself only matters to outputs
- *  with an effect chain — the web client — not to this remote). */
+/** One authored effect in a preset's ordered rack. Parameters are optional
+ *  because each effect type uses a different subset; playback supplies the
+ *  same defaults and bounds as the canonical web engine. */
 @Serializable
-data class PresetSummary(
+data class PresetEffect(
+    val type: String,
+    val bands: List<EqBand>? = null,
+    val frequency: Double? = null,
+    val q: Double? = null,
+    val time: Double? = null,
+    val feedback: Double? = null,
+    val wet: Double? = null,
+    val amount: Double? = null,
+    val rate: Double? = null,
+    val depth: Double? = null,
+    val decay: Double? = null,
+)
+
+@Serializable
+data class EqBand(
+    /** Kept for round-trip/debug visibility; playback follows the web engine
+     *  and uses the canonical band frequency at this list position. */
+    val frequency: Double? = null,
+    val gain: Double = 0.0,
+)
+
+/** Full mode-scoped preset manifest. Speaker outputs need the effect rack;
+ *  controllers also reuse its identity and display metadata. */
+@Serializable
+data class PresetManifest(
     val id: String,
     val name: String,
     val description: String? = null,
+    val effects: List<PresetEffect> = emptyList(),
+    val crossfadeMs: Int? = null,
 )
 
 @Serializable
