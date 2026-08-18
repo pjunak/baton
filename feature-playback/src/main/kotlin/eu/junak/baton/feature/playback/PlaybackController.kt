@@ -14,6 +14,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -45,6 +48,23 @@ class PlaybackController @Inject constructor(
     val deviceId: String get() = networkStore.clientId
 
     init {
+        // Output selection is canonical server state. A different controller
+        // or an output-by-default designation can activate this phone without
+        // going through setEnabled(), so bridge that state back into the local
+        // foreground service. Without this, the UI showed the phone as active
+        // while Baton remained a controller-only client and produced no audio.
+        scope.launch {
+            syncClient.state
+                .filterNotNull()
+                .map { deviceId in it.activeOutputDeviceIds }
+                .distinctUntilChanged()
+                .collect { active ->
+                    if (shouldStartLocalPlayback(active, _enabled.value)) {
+                        setEnabled(true)
+                    }
+                }
+        }
+
         // The server wipes `active_output_device_ids` when a socket drops, so
         // after any reconnect this phone kept playing (the local flag gates
         // audio) but vanished from every client's Devices/active list. Re-assert
@@ -84,3 +104,6 @@ class PlaybackController @Inject constructor(
 
     fun toggle() = setEnabled(!_enabled.value)
 }
+
+internal fun shouldStartLocalPlayback(canonicallyActive: Boolean, locallyEnabled: Boolean): Boolean =
+    canonicallyActive && !locallyEnabled

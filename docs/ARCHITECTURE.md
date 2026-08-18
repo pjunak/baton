@@ -95,7 +95,9 @@ of the sibling server contract.
 
 `PlaybackController` owns the app-scope local on/off flag. Enabling it starts `PlaybackService` as
 a media-playback foreground service and adds this stable device id to the server's live output
-set. Because local audio is the real gate, the controller reasserts membership after reconnect.
+set. Canonical membership also starts the local service when this phone is activated by another
+controller or its output-by-default designation. Because local audio is the real gate, the
+controller reasserts membership after reconnect.
 
 `PlaybackService` contains:
 
