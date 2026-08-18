@@ -12,7 +12,6 @@ import eu.junak.baton.core.network.MediaUrls
 import eu.junak.baton.core.network.api.LibraryApi
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
-import eu.junak.baton.feature.playback.PlaybackController
 import eu.junak.baton.settings.AppPreferences
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.currentCoroutineContext
@@ -50,7 +49,6 @@ class ConsoleViewModel @Inject constructor(
     private val syncClient: SyncClient,
     private val libraryApi: LibraryApi,
     private val mediaUrls: MediaUrls,
-    private val playbackController: PlaybackController,
     private val appPreferences: AppPreferences,
 ) : ViewModel() {
 
@@ -62,7 +60,6 @@ class ConsoleViewModel @Inject constructor(
         /** Why the last connection attempt failed — banner detail while disconnected. */
         val failureDetail: String? = null,
         val connected: Boolean = false,
-        val playingHere: Boolean = false,
         val keepConsoleAwake: Boolean = false,
         val isPlaying: Boolean = false,
         val nowPlaying: Track? = null,
@@ -146,7 +143,6 @@ class ConsoleViewModel @Inject constructor(
                 queue = queue,
             )
         }
-            .combine(playbackController.enabled) { ui, playingHere -> ui.copy(playingHere = playingHere) }
             .combine(appPreferences.keepConsoleAwake) { ui, keepAwake ->
                 ui.copy(keepConsoleAwake = keepAwake)
             }

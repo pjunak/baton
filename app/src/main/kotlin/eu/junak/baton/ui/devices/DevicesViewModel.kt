@@ -14,8 +14,9 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 /**
- * Manage every connected output: toggle which devices are active outputs
- * ([Action.SetActiveOutputs]) and trim per-device volume ([Action.SetDeviceVolume]).
+ * Manage every connected output: choose one output by default, optionally add
+ * more outputs ([Action.SetActiveOutputs]), and trim per-device volume
+ * ([Action.SetDeviceVolume]).
  * This phone appears here too; toggling it routes through [PlaybackController] (the
  * same path as the Console's "Play on this phone" switch) so the local engine reacts.
  */
@@ -61,21 +62,54 @@ class DevicesViewModel @Inject constructor(
             UiState(devices = devices, connected = status == ConnectionStatus.CONNECTED)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), UiState())
 
-    fun toggleOutput(deviceId: String, on: Boolean) {
-        if (deviceId == playbackController.deviceId) {
-            playbackController.setEnabled(on) // this phone — drive the local engine + server in one place
-            return
-        }
-        val current = syncClient.state.value?.activeOutputDeviceIds.orEmpty()
-        val next = if (on) (current + deviceId).distinct() else current - deviceId
-        syncClient.send(Action.SetActiveOutputs(next))
+    fun toggleOutput(deviceId: String, on: Boolean, allowMultiple: Boolean) {
+        val current = effectiveActiveOutputs()
+        applyActiveOutputs(nextActiveOutputs(current, deviceId, on, allowMultiple))
+    }
+
+    fun setMultipleOutputs(enabled: Boolean) {
+        if (enabled) return
+        val current = effectiveActiveOutputs()
+        if (current.size > 1) applyActiveOutputs(collapseToSingleOutput(current))
     }
 
     fun setDeviceVolume(deviceId: String, volume: Float) {
         syncClient.setDeviceVolume(deviceId, volume.toDouble())
     }
 
+    private fun effectiveActiveOutputs(): List<String> {
+        val current = syncClient.state.value?.activeOutputDeviceIds.orEmpty()
+        val myId = playbackController.deviceId
+        return if (playbackController.enabled.value && myId !in current) current + myId else current
+    }
+
+    /** Keep local phone playback and canonical server membership in one transition. */
+    private fun applyActiveOutputs(next: List<String>) {
+        val phoneEnabled = playbackController.enabled.value
+        val shouldEnablePhone = playbackController.deviceId in next
+        if (phoneEnabled != shouldEnablePhone) {
+            playbackController.setEnabled(shouldEnablePhone, outputDeviceIds = next)
+        } else {
+            val current = syncClient.state.value?.activeOutputDeviceIds.orEmpty()
+            if (next != current) syncClient.send(Action.SetActiveOutputs(next))
+        }
+    }
+
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
     }
 }
+
+internal fun nextActiveOutputs(
+    current: List<String>,
+    deviceId: String,
+    on: Boolean,
+    allowMultiple: Boolean,
+): List<String> =
+    if (on) {
+        if (allowMultiple) (current + deviceId).distinct() else listOf(deviceId)
+    } else {
+        current - deviceId
+    }
+
+internal fun collapseToSingleOutput(current: List<String>): List<String> = current.take(1)

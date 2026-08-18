@@ -28,10 +28,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +51,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -66,6 +69,14 @@ import eu.junak.baton.ui.theme.BatonSpacing
 fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
     val title = stringResource(R.string.devices_title)
+    val activeOutputCount = ui.devices.count { it.isActiveOutput }
+    var multipleOutputs by rememberSaveable { mutableStateOf(activeOutputCount > 1) }
+
+    // Output-by-default connections and other controllers can create a
+    // multi-output session outside this sheet. Reflect that canonical state.
+    LaunchedEffect(activeOutputCount) {
+        if (activeOutputCount > 1) multipleOutputs = true
+    }
 
     Column(
         Modifier
@@ -77,6 +88,39 @@ fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
             text = title,
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(horizontal = BatonSpacing.Large, vertical = BatonSpacing.Small),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = BatonSpacing.Large),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.devices_multiple_outputs),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = multipleOutputs,
+                onCheckedChange = { enabled ->
+                    multipleOutputs = enabled
+                    viewModel.setMultipleOutputs(enabled)
+                },
+                enabled = ui.connected,
+            )
+        }
+        Text(
+            text = stringResource(
+                if (multipleOutputs) R.string.devices_multiple_outputs_help
+                else R.string.devices_single_output_help,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(
+                start = BatonSpacing.Large,
+                end = BatonSpacing.Large,
+                bottom = BatonSpacing.Small,
+            ),
         )
         if (ui.devices.isEmpty()) {
             Text(
@@ -92,7 +136,7 @@ fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
                 DeviceCard(
                     device = device,
                     enabled = ui.connected,
-                    onToggle = { viewModel.toggleOutput(device.deviceId, it) },
+                    onToggle = { viewModel.toggleOutput(device.deviceId, it, multipleOutputs) },
                     onVolume = { viewModel.setDeviceVolume(device.deviceId, it) },
                 )
                 HorizontalDivider()
@@ -137,7 +181,7 @@ private fun DeviceCard(
             )
         }
         if (device.isActiveOutput) {
-            DeviceVolume(deviceLabel, device.volume, enabled, onVolume)
+            DeviceVolumeControl(deviceLabel, device.volume, enabled, onVolume)
         }
     }
 }
@@ -148,11 +192,14 @@ private fun DeviceCard(
  * rather than the chunky default Material slider, for a cleaner look in the device sheet.
  */
 @Composable
-private fun DeviceVolume(
+internal fun DeviceVolumeControl(
     deviceLabel: String,
     volume: Float,
     enabled: Boolean,
     onVolume: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    showIcons: Boolean = true,
+    showPercent: Boolean = false,
 ) {
     var dragFrac by remember { mutableStateOf<Float?>(null) }
     var widthPx by remember { mutableIntStateOf(0) }
@@ -165,16 +212,23 @@ private fun DeviceVolume(
     val volumeState = stringResource(R.string.volume_percent, (frac * 100).toInt())
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(top = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.AutoMirrored.Filled.VolumeDown, contentDescription = null, modifier = Modifier.size(18.dp), tint = iconTint)
+        if (showIcons) {
+            Icon(
+                Icons.AutoMirrored.Filled.VolumeDown,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = iconTint,
+            )
+        }
         Box(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = if (showIcons) 12.dp else BatonSpacing.Small)
                 .height(48.dp)
                 .semantics {
                     contentDescription = volumeDescription
@@ -231,7 +285,23 @@ private fun DeviceVolume(
                     .background(fillColor),
             )
         }
-        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp), tint = iconTint)
+        if (showIcons) {
+            Icon(
+                Icons.AutoMirrored.Filled.VolumeUp,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = iconTint,
+            )
+        }
+        if (showPercent) {
+            Text(
+                text = volumeState,
+                style = MaterialTheme.typography.labelMedium,
+                color = iconTint,
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(48.dp),
+            )
+        }
     }
 }
 

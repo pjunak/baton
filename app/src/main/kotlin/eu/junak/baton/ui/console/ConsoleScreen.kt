@@ -95,6 +95,8 @@ import eu.junak.baton.ui.components.TrackArtwork
 import eu.junak.baton.ui.components.TrackListItem
 import eu.junak.baton.ui.console.ConsoleViewModel.QueueEntry
 import eu.junak.baton.ui.devices.DevicePicker
+import eu.junak.baton.ui.devices.DeviceVolumeControl
+import eu.junak.baton.ui.devices.DevicesViewModel
 import eu.junak.baton.ui.theme.ActiveAccent
 import eu.junak.baton.ui.theme.BatonSpacing
 import java.util.Locale
@@ -106,8 +108,10 @@ fun ConsoleScreen(
     openDevices: Boolean = false,
     onOpenDevicesHandled: () -> Unit = {},
     viewModel: ConsoleViewModel = hiltViewModel(),
+    devicesViewModel: DevicesViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
+    val devicesUi by devicesViewModel.uiState.collectAsStateWithLifecycle()
     var showDevices by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(openDevices) {
@@ -123,23 +127,41 @@ fun ConsoleScreen(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val useWideLayout = useWideConsoleLayout(maxWidth.value, maxHeight.value)
         if (useWideLayout) {
-            ConsoleWide(ui, viewModel, onShowDevices = { showDevices = true })
+            ConsoleWide(
+                ui,
+                viewModel,
+                devicesUi,
+                onDeviceVolume = devicesViewModel::setDeviceVolume,
+                onShowDevices = { showDevices = true },
+            )
         } else {
-            ConsolePortrait(ui, viewModel, onShowDevices = { showDevices = true })
+            ConsolePortrait(
+                ui,
+                viewModel,
+                devicesUi,
+                onDeviceVolume = devicesViewModel::setDeviceVolume,
+                onShowDevices = { showDevices = true },
+            )
         }
     }
 
-    DeviceTopSheet(visible = showDevices, onDismiss = { showDevices = false })
+    DeviceTopSheet(
+        visible = showDevices,
+        viewModel = devicesViewModel,
+        onDismiss = { showDevices = false },
+    )
 }
 
 @Composable
 private fun ConsolePortrait(
     ui: ConsoleViewModel.UiState,
     viewModel: ConsoleViewModel,
+    devicesUi: DevicesViewModel.UiState,
+    onDeviceVolume: (String, Float) -> Unit,
     onShowDevices: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
-        OutputPicker(ui.playingHere, onShowDevices)
+        OutputPicker(devicesUi, onDeviceVolume, onShowDevices)
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -160,6 +182,8 @@ private fun ConsolePortrait(
 private fun ConsoleWide(
     ui: ConsoleViewModel.UiState,
     viewModel: ConsoleViewModel,
+    devicesUi: DevicesViewModel.UiState,
+    onDeviceVolume: (String, Float) -> Unit,
     onShowDevices: () -> Unit,
 ) {
     Row(Modifier.fillMaxSize()) {
@@ -179,7 +203,7 @@ private fun ConsoleWide(
                 .weight(0.56f)
                 .fillMaxHeight(),
         ) {
-            OutputPicker(ui.playingHere, onShowDevices)
+            OutputPicker(devicesUi, onDeviceVolume, onShowDevices)
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -195,18 +219,42 @@ private fun ConsoleWide(
 }
 
 @Composable
-private fun OutputPicker(playingHere: Boolean, onClick: () -> Unit) {
+private fun OutputPicker(
+    ui: DevicesViewModel.UiState,
+    onVolume: (String, Float) -> Unit,
+    onClick: () -> Unit,
+) {
+    val activeOutput = ui.devices.singleOrNull { it.isActiveOutput }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (activeOutput != null) {
+            DeviceVolumeControl(
+                deviceLabel = activeOutput.name,
+                volume = activeOutput.volume,
+                enabled = ui.connected,
+                onVolume = { onVolume(activeOutput.deviceId, it) },
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = BatonSpacing.Large),
+                showIcons = false,
+                showPercent = true,
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
         IconButton(onClick = onClick) {
             Icon(
                 imageVector = Icons.Filled.Speaker,
                 contentDescription = stringResource(R.string.devices_title),
-                tint = if (playingHere) ActiveAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (ui.devices.any { it.isActiveOutput }) {
+                    ActiveAccent
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             )
         }
     }
@@ -276,7 +324,11 @@ private fun ConsoleControlBar(ui: ConsoleViewModel.UiState, viewModel: ConsoleVi
  * from the top edge. Material3 has no top-sheet, so it's hand-rolled.
  */
 @Composable
-private fun DeviceTopSheet(visible: Boolean, onDismiss: () -> Unit) {
+private fun DeviceTopSheet(
+    visible: Boolean,
+    viewModel: DevicesViewModel,
+    onDismiss: () -> Unit,
+) {
     BackHandler(enabled = visible) { onDismiss() }
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(
@@ -306,7 +358,7 @@ private fun DeviceTopSheet(visible: Boolean, onDismiss: () -> Unit) {
                 tonalElevation = 3.dp,
                 shadowElevation = 8.dp,
             ) {
-                DevicePicker()
+                DevicePicker(viewModel)
             }
         }
     }

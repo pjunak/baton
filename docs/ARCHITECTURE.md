@@ -83,7 +83,9 @@ the phone speaker, wired audio, Bluetooth headphones, or Bluetooth speakers.
 - **Settings:** General / Playback / Updates subtabs for account, server/web link, Keep Console
   awake, app version, and updater state.
 - **Devices:** a Console modal listing connected devices, live output activation, and canonical
-  per-device volume. The phone row controls the local speaker service as well as server membership.
+  per-device volume. Selection is single-output by default; users can opt into multiple outputs in
+  the modal. When exactly one output is active, its volume is also available beside the Console
+  speaker button. The phone row controls the local speaker service as well as server membership.
 
 Queue ids are batch-resolved through `GET /api/library/tracks?ids=...`; folder navigation combines
 `GET /api/library/folders` with `GET /api/library/tree?path=...`. These endpoints are already part

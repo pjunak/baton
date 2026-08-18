@@ -62,18 +62,23 @@ class PlaybackController @Inject constructor(
         }
     }
 
-    /** Turn this phone into an audio output (or off). Idempotent. */
-    fun setEnabled(on: Boolean) {
-        if (_enabled.value == on) return
+    /**
+     * Turn this phone into an audio output (or off). [outputDeviceIds] lets an
+     * operator surface replace the whole live output set in the same ordered
+     * command, which is needed when switching between single outputs. Other
+     * callers omit it and retain the additive phone-speaker behavior.
+     */
+    fun setEnabled(on: Boolean, outputDeviceIds: List<String>? = null) {
+        val localChanged = _enabled.value != on
         _enabled.value = on
-        if (on) {
+        if (localChanged && on) {
             ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java))
         }
         // Best-effort: keep the server's output list honest so the Devices surface and
         // other clients reflect this phone. (No-op while disconnected; the local
         // flag above is the real gate.)
         val current = syncClient.state.value?.activeOutputDeviceIds.orEmpty()
-        val next = if (on) (current + deviceId).distinct() else current - deviceId
+        val next = outputDeviceIds ?: if (on) (current + deviceId).distinct() else current - deviceId
         if (next != current) syncClient.send(Action.SetActiveOutputs(next))
     }
 

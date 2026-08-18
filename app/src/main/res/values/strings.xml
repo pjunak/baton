@@ -33,6 +33,9 @@
     <string name="console_next">Next</string>
     <string name="devices_title">Output devices</string>
     <string name="devices_empty">No devices connected</string>
+    <string name="devices_multiple_outputs">Play on multiple outputs</string>
+    <string name="devices_single_output_help">Choose one output. Selecting another replaces it.</string>
+    <string name="devices_multiple_outputs_help">Choose any outputs that should play together.</string>
     <string name="devices_output_toggle">Use %1$s as an output</string>
     <string name="devices_volume">Volume for %1$s</string>
     <string name="devices_active_output">Active output</string>

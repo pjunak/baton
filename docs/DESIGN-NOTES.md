@@ -22,6 +22,8 @@ connection honesty, and reliable controls matter more than decorative density.
 - A dominant docked play/pause control with secondary transport controls.
 - Starting playback with no active output moves to Console and opens the output picker rather than
   silently advancing an inaudible server clock.
+- The output picker defaults to one active speaker, offers multi-output as an explicit switch, and
+  exposes the sole active speaker's volume directly in the Console header.
 - Opt-in Keep Console awake behavior.
 - Offline-disabled mutations and a prominent reconnect/disconnect banner.
 - Lifecycle-aware Console ticker and controller socket lifetime.
