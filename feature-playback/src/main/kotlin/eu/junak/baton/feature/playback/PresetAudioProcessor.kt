@@ -7,6 +7,7 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import eu.junak.baton.core.network.api.PresetEffect
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.PI
 import kotlin.math.abs
@@ -34,6 +35,10 @@ internal class PresetAudioProcessor : BaseAudioProcessor() {
     private var appliedVersion = -1L
     private var effectChain: PresetEffectChain? = null
     private var frameBuffer = FloatArray(0)
+    private var firstOutputBuffer = AudioProcessor.EMPTY_BUFFER
+    private var secondOutputBuffer = AudioProcessor.EMPTY_BUFFER
+    private var pendingOutputBuffer = AudioProcessor.EMPTY_BUFFER
+    private var inputEnded = false
 
     fun setEffects(effects: List<PresetEffect>) {
         val snapshot = effects.toList()
@@ -64,12 +69,14 @@ internal class PresetAudioProcessor : BaseAudioProcessor() {
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
+        if (!inputBuffer.hasRemaining()) return
         applyRequestedConfig()
-        val outputBuffer = replaceOutputBuffer(inputBuffer.remaining())
+        val outputBuffer = acquireOutputBuffer(inputBuffer, inputBuffer.remaining())
         val chain = effectChain
         if (chain == null) {
             outputBuffer.put(inputBuffer)
             outputBuffer.flip()
+            pendingOutputBuffer = outputBuffer
             return
         }
 
@@ -89,18 +96,56 @@ internal class PresetAudioProcessor : BaseAudioProcessor() {
         // bytes instead of consuming or padding them.
         outputBuffer.put(inputBuffer)
         outputBuffer.flip()
+        pendingOutputBuffer = outputBuffer
+    }
+
+    /**
+     * Media3 can feed a processor's previous output back as its next input.
+     * Keep two reusable buffers so the output is always distinct from that
+     * input; BaseAudioProcessor's single buffer cannot make that guarantee.
+     */
+    private fun acquireOutputBuffer(inputBuffer: ByteBuffer, size: Int): ByteBuffer {
+        val useFirst = firstOutputBuffer !== inputBuffer
+        var output = if (useFirst) firstOutputBuffer else secondOutputBuffer
+        if (output.capacity() < size) {
+            output = ByteBuffer.allocateDirect(size).order(ByteOrder.nativeOrder())
+            if (useFirst) firstOutputBuffer = output else secondOutputBuffer = output
+        } else {
+            output.clear()
+        }
+        return output
+    }
+
+    override fun getOutput(): ByteBuffer {
+        super.getOutput()
+        val output = pendingOutputBuffer
+        pendingOutputBuffer = AudioProcessor.EMPTY_BUFFER
+        return output
+    }
+
+    override fun isEnded(): Boolean =
+        super.isEnded() && inputEnded && !pendingOutputBuffer.hasRemaining()
+
+    override fun onQueueEndOfStream() {
+        inputEnded = true
     }
 
     override fun onFlush(streamMetadata: AudioProcessor.StreamMetadata) {
         appliedVersion = -1L
         effectChain = null
         frameBuffer = FloatArray(inputAudioFormat.channelCount)
+        pendingOutputBuffer = AudioProcessor.EMPTY_BUFFER
+        inputEnded = false
     }
 
     override fun onReset() {
         appliedVersion = -1L
         effectChain = null
         frameBuffer = FloatArray(0)
+        firstOutputBuffer = AudioProcessor.EMPTY_BUFFER
+        secondOutputBuffer = AudioProcessor.EMPTY_BUFFER
+        pendingOutputBuffer = AudioProcessor.EMPTY_BUFFER
+        inputEnded = false
     }
 
     private fun applyRequestedConfig() {

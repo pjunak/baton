@@ -22,6 +22,7 @@ import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
@@ -171,6 +172,17 @@ class PlaybackService : Service() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
+        exo.addListener(
+            object : Player.Listener {
+                override fun onPlayerError(error: PlaybackException) {
+                    // Make failures visible and allow a later canonical state
+                    // emission to reload the same track instead of leaving the
+                    // service permanently idle behind an active output badge.
+                    loadedTrackId = null
+                    Log.e(TAG, "Phone output playback failed", error)
+                }
+            },
+        )
         player = exo
         mediaSession = buildMediaSession(exo)
 

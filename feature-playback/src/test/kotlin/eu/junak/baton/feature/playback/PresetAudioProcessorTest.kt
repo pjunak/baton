@@ -33,6 +33,34 @@ class PresetAudioProcessorTest {
         assertEquals(8_192.0, affectedAgain.single().toDouble(), 1.0)
     }
 
+    @Suppress("DEPRECATION")
+    @Test
+    fun `recycled output buffer remains safe as the next dry input`() {
+        val processor = PresetAudioProcessor()
+        processor.configure(AudioProcessor.AudioFormat(44_100, 2, C.ENCODING_PCM_16BIT))
+        processor.flush()
+
+        val input = ByteBuffer.allocateDirect(2 * Short.SIZE_BYTES).order(ByteOrder.nativeOrder())
+        input.putShort(1_024)
+        input.putShort(-2_048)
+        input.flip()
+        processor.queueInput(input)
+
+        val recycled = processor.output.order(ByteOrder.nativeOrder())
+        assertEquals(1_024, recycled.short.toInt())
+        assertEquals(-2_048, recycled.short.toInt())
+        recycled.clear()
+        recycled.putShort(4_096)
+        recycled.putShort(-8_192)
+        recycled.flip()
+
+        processor.queueInput(recycled)
+
+        val output = processor.output.order(ByteOrder.nativeOrder())
+        val actual = ShortArray(output.remaining() / Short.SIZE_BYTES) { output.short }
+        assertArrayEquals(shortArrayOf(4_096, -8_192), actual)
+    }
+
     private fun process(processor: PresetAudioProcessor, samples: ShortArray): ShortArray {
         val input = ByteBuffer.allocateDirect(samples.size * Short.SIZE_BYTES)
             .order(ByteOrder.nativeOrder())
