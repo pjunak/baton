@@ -105,6 +105,11 @@ class SyncClient @Inject constructor(
     /** Latest canonical state, or null before the first snapshot. */
     val state: StateFlow<PlayerState?> = _state.asStateFlow()
 
+    private val _liveState = MutableStateFlow<PlayerState?>(null)
+
+    /** Audio permission comes only from a snapshot on the current connection. */
+    val liveState: StateFlow<PlayerState?> = _liveState.asStateFlow()
+
     private val _status = MutableStateFlow(ConnectionStatus.DISCONNECTED)
     val status: StateFlow<ConnectionStatus> = _status.asStateFlow()
 
@@ -181,6 +186,7 @@ class SyncClient @Inject constructor(
         reconnectJob = null
         webSocket?.close(NORMAL_CLOSURE, null)
         webSocket = null
+        _liveState.value = null
         _status.value = ConnectionStatus.DISCONNECTED
     }
 
@@ -196,6 +202,7 @@ class SyncClient @Inject constructor(
 
     @Synchronized
     private fun openSocket() {
+        _liveState.value = null
         val base = serverConfig.baseUrlOrNull()
         if (base == null) {
             _status.value = ConnectionStatus.DISCONNECTED
@@ -255,10 +262,7 @@ class SyncClient @Inject constructor(
             }
             reconnectAttempts = 0
             _lastFailure.value = null
-            // Identify ourselves so the operator can designate this device an
-            // output. Sent BEFORE the status flips so anything reacting to
-            // CONNECTED (e.g. re-asserting the output designation) enqueues
-            // after register on this ordered socket.
+            // Register before exposing the connection to action senders.
             webSocket.send(
                 json.encodeToString(
                     Action.serializer(),
@@ -298,6 +302,7 @@ class SyncClient @Inject constructor(
         private fun acceptState(incoming: PlayerState) {
             if (!hasStateThisConnection || shouldAcceptStateChange(_state.value, incoming)) {
                 _state.value = incoming
+                _liveState.value = incoming
                 hasStateThisConnection = true
             }
         }
@@ -308,12 +313,14 @@ class SyncClient @Inject constructor(
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
             if (!isCurrent(webSocket)) return
+            _liveState.value = null
             _status.value = ConnectionStatus.DISCONNECTED
             scheduleReconnect()
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             if (!isCurrent(webSocket)) return
+            _liveState.value = null
             _status.value = ConnectionStatus.DISCONNECTED
             // Transport failures are NOT toasted (reconnect is automatic, and at
             // app open a DNS race would spam "Unable to resolve host" for a

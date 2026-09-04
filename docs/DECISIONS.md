@@ -59,7 +59,7 @@ login re-prompted (URL remembered).
 **Decision.** Mirror it 1:1. The app replaces its local `PlayerState` on every `state_changed` and
 sends typed `Action`s for every mutation. The UI holds no authoritative playback state.
 
-**Consequences.** `core-model` mirrors `protocol.py` (sealed `Action`, `type` discriminator).
+**Consequences.** `core-model` mirrors `music-protocol` (sealed `Action`, `type` discriminator).
 ViewModels are thin projections + `send(Action)`. The *only* sanctioned local optimism is
 dead-reckoning the seek position between server reports (snapped back on each report) — a UX
 nicety, not a second source of truth.

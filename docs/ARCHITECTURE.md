@@ -12,10 +12,11 @@ not built belongs in [DESIGN-NOTES.md](DESIGN-NOTES.md); durable trade-offs belo
 
 The sibling `music` repository is the protocol authority:
 
-- `backend/app/sync/protocol.py` defines `PlayerState`, messages, and actions.
-- `backend/app/sync/router.py` owns WebSocket registration, authorization, and dispatch.
+- `crates/music-protocol` defines `PlayerState`, messages, and actions.
+- `crates/music-server` owns WebSocket registration, authorization, and dispatch;
+  `crates/music-application/src/playback` owns canonical state transitions.
 - `clients/README.md` defines output reconciliation and per-device volume semantics.
-- `backend/app/api/` defines authentication, library, mode, device, and update-facing HTTP APIs.
+- `crates/music-server` defines authentication, library, mode, device, and update-facing HTTP APIs.
 
 Baton is always an authenticated operator client. It does not expose a guest mode and does not
 author library files, modes, cues, soundboards, or presets; Settings links to the web app for those
@@ -93,11 +94,14 @@ of the sibling server contract.
 
 ## Speaker role
 
-`PlaybackController` owns the app-scope local on/off flag. Enabling it starts `PlaybackService` as
-a media-playback foreground service and adds this stable device id to the server's live output
-set. Canonical membership also starts the local service when this phone is activated by another
-controller or its output-by-default designation. Because local audio is the real gate, the
-controller reasserts membership after reconnect.
+`PlaybackController` projects the server's output membership into the foreground service.
+The phone switch requests a membership change; playback starts after server confirmation.
+Removal by any controller stops music and all SFX. Disconnect revokes audio permission,
+and reconnect waits for a fresh snapshot without replaying an output-selection mutation.
+An output-by-default designation can restore membership through server registration.
+`SyncClient.liveState` supplies this current-connection snapshot separately from the last
+known state retained for display while offline. SFX preparation rechecks permission before
+starting audio, so a delayed prepare callback cannot revive a removed output.
 
 `PlaybackService` contains:
 

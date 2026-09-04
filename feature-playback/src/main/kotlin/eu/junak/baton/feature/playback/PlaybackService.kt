@@ -187,7 +187,7 @@ class PlaybackService : Service() {
         mediaSession = buildMediaSession(exo)
 
         scope.launch {
-            combine(syncClient.state, playbackController.enabled, ::Pair).collect { (state, enabled) ->
+            combine(syncClient.liveState, playbackController.enabled, ::Pair).collect { (state, enabled) ->
                 reconcile(state, enabled)
             }
         }
@@ -197,8 +197,8 @@ class PlaybackService : Service() {
         // authoring updates an unchanged active id on this output too.
         scope.launch {
             var installedModeId: String? = null
-            combine(syncClient.state, playbackController.enabled) { state, enabled ->
-                if (!enabled || state == null) {
+            combine(syncClient.liveState, playbackController.enabled) { state, enabled ->
+                if (!enabled || state == null || !isCanonicalOutput(state, playbackController.deviceId)) {
                     null
                 } else {
                     PresetSelection(
@@ -322,7 +322,7 @@ class PlaybackService : Service() {
      */
     private fun reconcile(state: PlayerState?, enabled: Boolean) {
         val player = this.player ?: return
-        if (!enabled) {
+        if (!enabled || !isCanonicalOutput(state, playbackController.deviceId)) {
             stopEverything()
             return
         }
@@ -390,7 +390,8 @@ class PlaybackService : Service() {
      */
     private fun fireSfx(event: ServerMessage.SfxFired) {
         if (!playbackController.enabled.value) return
-        val state = syncClient.state.value ?: return
+        val state = syncClient.liveState.value ?: return
+        if (!isCanonicalOutput(state, playbackController.deviceId)) return
         val url = mediaUrls.sfx(event.itemPath) ?: return
         val outputVolume = outputVolume(state)
         val vol = (event.volume.toFloat() * outputVolume.toFloat()).coerceIn(0f, 1f)
@@ -403,7 +404,15 @@ class PlaybackService : Service() {
                 .build(),
         )
         mp.setVolume(vol, vol)
-        mp.setOnPreparedListener { it.start() }
+        mp.setOnPreparedListener {
+            if (playbackController.enabled.value &&
+                isCanonicalOutput(syncClient.liveState.value, playbackController.deviceId)
+            ) {
+                it.start()
+            } else {
+                releaseSfx(it)
+            }
+        }
         mp.setOnCompletionListener { releaseSfx(it) }
         mp.setOnErrorListener { p, _, _ ->
             releaseSfx(p)
