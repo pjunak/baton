@@ -8,6 +8,12 @@ phone, and optionally let the phone itself be one of the audio outputs.
 Like the server, Baton is **generic** — it bakes in *no* connection details. Point it at your own
 `music` instance at first launch; nothing about a specific server is compiled in.
 
+Server schema 11 changes session storage and requires one new sign-in after the
+upgrade. Baton continues to use the configured opaque cookie for HTTP and
+WebSocket connections; its native socket omits Origin. The server's new browser
+Origin allowlist does not change Baton's wire messages or require an app-specific
+origin setting.
+
 > **Status:** the controller, optional speaker role, updater, CI, and signed-release pipeline are
 > implemented. Remaining work is product polish and additional UI/static-analysis coverage; see
 > [Design notes](docs/DESIGN-NOTES.md).
