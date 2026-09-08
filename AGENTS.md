@@ -4,19 +4,21 @@ Native Android remote control and optional audio-output client for the sibling
 `music` server. The server owns playback state; Baton renders that state and
 sends typed actions. Keep server URLs and credentials runtime-configured.
 
-## Read first
+## Read by task
 
-- [`README.md`](README.md) for supported features and build caveats.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for system design and flows.
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) for durable design decisions.
+- [`README.md`](README.md) for setup, supported features and build caveats.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) when changing module ownership or data flows.
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) when changing a documented design decision.
 - The sibling [`music/AGENTS.md`](../music/AGENTS.md) and
   [`music/clients/README.md`](../music/clients/README.md) before changing the
   HTTP, WebSocket, device, or playback protocol.
 
 ## Commands
 
-Run from PowerShell. Command-line Gradle needs JDK 17+; Android Studio's bundled
-JBR is suitable.
+Use the Gradle wrapper (gradlew.bat in PowerShell, ./gradlew in a POSIX shell).
+Command-line Gradle needs JDK 17+; Android Studio's bundled JBR is suitable.
+Keep a working JAVA_HOME. The following is an example only when Java is missing
+or incompatible; locate the installed JDK rather than assuming this path exists.
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
@@ -79,13 +81,19 @@ modules; core modules must not depend on Android UI or feature modules.
 
 ## Testing and completion
 
+For prose or agent-guidance-only changes, review the diff, check local links,
+and verify changed commands or contract claims. Runtime builds and operational
+acceptance are required only for the affected behavior below. Reuse successful
+checks on unchanged inputs; preserve complete CI and release gates.
+
 - Pure protocol, reducer, and synchronization behavior belongs in JVM tests.
 - Add module-local tests for non-trivial state transitions and serialization.
 - Run the narrowest affected tests during development, then
-  `.\gradlew.bat assembleDebug test lintDebug` before handoff.
-- For protocol changes, verify against a live `music` instance: login,
+  `.\gradlew.bat assembleDebug test lintDebug` for runtime/build changes before handoff.
+- For protocol changes, use an isolated local/test `music` instance: login,
   reconnect, transport, seek, queue, modes, devices, and optional speaker
-  playback as applicable.
+  playback as applicable. Record physical phone/speaker acceptance separately;
+  JVM, emulator and server checks do not prove audible hardware playback.
 - Update README or architecture documentation when commands, modules, protocol
   assumptions, or supported behavior change.
 
