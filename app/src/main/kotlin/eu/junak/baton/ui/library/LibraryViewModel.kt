@@ -1,160 +1,96 @@
 package eu.junak.baton.ui.library
 
-import android.content.Context
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import eu.junak.baton.R
 import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.model.Track
 import eu.junak.baton.core.network.MediaUrls
-import eu.junak.baton.core.network.api.FolderOut
 import eu.junak.baton.core.network.api.LibraryApi
+import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
-/**
- * Read-only library browser. Per the server contract, the folder hierarchy comes
- * from LibraryApi.folders as one whole-tree response that clients navigate locally;
- * LibraryApi.tree only supplies the tracks directly inside the open folder. Search
- * goes through LibraryApi.search, and playback starts by sending ambient actions
- * through [SyncClient] — the server is the one that actually plays.
- */
+enum class LibraryEvent { SELECT_OUTPUT, SEND_FAILED, QUEUE_REQUESTED }
+
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
-    private val libraryApi: LibraryApi,
+    libraryApi: LibraryApi,
     private val syncClient: SyncClient,
     private val mediaUrls: MediaUrls,
-    @ApplicationContext private val context: Context,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    private val browser = LibraryBrowser(
+        libraryApi,
+        viewModelScope,
+        initial = savedStateHandle.get<String>(NAVIGATION_KEY)?.let {
+            runCatching { Json.decodeFromString<LibraryNavigation>(it) }.getOrNull()
+        } ?: LibraryNavigation(),
+        saveNavigation = { savedStateHandle[NAVIGATION_KEY] = Json.encodeToString(it) },
+    )
+    val ui = browser.state
+    val connection = syncClient.status
+    private val eventChannel = Channel<LibraryEvent>(Channel.BUFFERED)
+    val events = eventChannel.receiveAsFlow()
 
-    data class UiState(
-        val path: String = "",
-        val folders: List<FolderOut> = emptyList(),
-        val tracks: List<Track> = emptyList(),
-        val query: String = "",
-        val searchResults: List<Track>? = null,
-        val loading: Boolean = false,
-        val error: String? = null,
+    fun openFolder(path: String) = browser.openFolder(path)
+    fun openAncestor(path: String) = browser.openAncestor(path)
+    fun goUp() = browser.goUp()
+    fun back() = browser.back()
+    fun onQueryChange(query: String) = browser.onQueryChange(query)
+    fun refresh() = browser.refresh()
+    fun rememberScroll(key: String, index: Int, offset: Int) = browser.rememberScroll(key, index, offset)
+    fun coverUrl(trackId: Int): String? = mediaUrls.cover(trackId)
+    fun openContainingFolder(track: Track) = openFolder(parentLibraryPath(track.path))
+
+    fun playTrack(track: Track) = send(Action.AmbientPlayTrack(track.id), startsPlayback = true)
+    fun playCurrentFolder() = send(Action.AmbientPlayFolder(ui.value.location.path), startsPlayback = true)
+    fun playInterrupt(track: Track) = send(
+        Action.FireInterruptTrack(trackId = track.id, fadeInMs = 500, fadeOutMs = 500),
+        startsPlayback = true,
     )
 
-    private val _ui = MutableStateFlow(UiState())
-    val ui: StateFlow<UiState> = _ui.asStateFlow()
-
-    /** Drives debounced search; updated on every keystroke, but only the value the user
-     *  pauses on actually hits the network. */
-    private val queryFlow = MutableStateFlow("")
-
-    /** The whole folder hierarchy (any depth) from LibraryApi.folders. Re-fetched on
-     *  every root load — so returning to the top picks up uploads and rescans — and
-     *  reused while browsing deeper, which makes folder navigation one request per step. */
-    private var allFolders: List<FolderOut>? = null
-
-    init {
-        loadFolder("")
-        observeSearch()
-    }
-
-    fun loadFolder(path: String) {
-        _ui.update { it.copy(loading = true, error = null, query = "", searchResults = null) }
-        viewModelScope.launch {
-            runCatching {
-                coroutineScope {
-                    val tree = async { libraryApi.tree(path) }
-                    val cached = allFolders
-                    val folders =
-                        if (cached != null && path.isNotEmpty()) cached
-                        else libraryApi.folders().folders.also { allFolders = it }
-                    folders to tree.await()
-                }
-            }
-                .onSuccess { (folders, tree) ->
-                    _ui.update {
-                        it.copy(
-                            path = tree.path,
-                            folders = folders.filter { f -> f.parentPath == tree.path },
-                            tracks = tree.tracks,
-                            loading = false,
-                        )
-                    }
-                }
-                .onFailure { e ->
-                    _ui.update {
-                        it.copy(
-                            loading = false,
-                            error = e.message ?: context.getString(R.string.library_load_error),
-                        )
-                    }
-                }
-        }
-    }
-
-    fun goUp() {
-        val current = _ui.value.path
-        if (current.isNotEmpty()) loadFolder(current.substringBeforeLast('/', ""))
-    }
-
-    fun openFolder(folder: FolderOut) = loadFolder(folder.path)
-
-    fun onQueryChange(query: String) {
-        _ui.update { it.copy(query = query) }
-        queryFlow.value = query
-    }
-
-    /**
-     * Debounced search: [collectLatest] cancels the pending [delay] (and any in-flight request)
-     * the instant a newer keystroke arrives, so only the query the user paused on hits the network —
-     * no per-keystroke request storm, and a newer result can never be overwritten by an older one.
-     */
-    private fun observeSearch() {
-        viewModelScope.launch {
-            queryFlow.collectLatest { query ->
-                if (query.isBlank()) {
-                    _ui.update { it.copy(searchResults = null) }
-                    return@collectLatest
-                }
-                delay(SEARCH_DEBOUNCE_MS)
-                runCatching { libraryApi.search(query) }
-                    .onSuccess { response -> _ui.update { it.copy(searchResults = response.tracks) } }
-            }
-        }
-    }
-
-    /** Cover-art URL for a track id, for list thumbnails. */
-    fun coverUrl(trackId: Int): String? = mediaUrls.cover(trackId)
-
-    fun playTrack(track: Track) {
-        syncClient.send(Action.AmbientPlayTrack(track.id))
-    }
-
     fun enqueue(track: Track) {
-        syncClient.send(Action.AmbientEnqueue(trackId = track.id))
+        if (send(Action.AmbientEnqueue(trackId = track.id))) eventChannel.trySend(LibraryEvent.QUEUE_REQUESTED)
     }
 
-    /** Play [track] as an interrupt: it takes over now (ambient pauses) and returns when done. */
-    fun playInterrupt(track: Track) {
-        syncClient.send(Action.FireInterruptTrack(trackId = track.id, fadeInMs = 500, fadeOutMs = 500))
-    }
-
-    fun playCurrentFolder() {
-        syncClient.send(Action.AmbientPlayFolder(path = _ui.value.path))
+    private fun send(action: Action, startsPlayback: Boolean = false): Boolean {
+        val result = sendLibraryAction(
+            action,
+            startsPlayback,
+            connected = syncClient.status.value == ConnectionStatus.CONNECTED,
+            hasOutput = syncClient.liveState.value?.activeOutputDeviceIds?.isNotEmpty() == true,
+            send = syncClient::send,
+        )
+        when (result) {
+            LibraryActionResult.SELECT_OUTPUT -> eventChannel.trySend(LibraryEvent.SELECT_OUTPUT)
+            LibraryActionResult.FAILED -> eventChannel.trySend(LibraryEvent.SEND_FAILED)
+            LibraryActionResult.SENT -> Unit
+        }
+        return result == LibraryActionResult.SENT
     }
 
     private companion object {
-        const val SEARCH_DEBOUNCE_MS = 300L
+        const val NAVIGATION_KEY = "library_navigation"
     }
 }
 
-/** Parent folder of a library path: "a/b" -> "a", top-level "a" -> "" (the root). */
-private val FolderOut.parentPath: String
-    get() = path.substringBeforeLast('/', "")
+internal enum class LibraryActionResult { SENT, SELECT_OUTPUT, FAILED }
+
+/** Gate live actions at dispatch time as well as disabling their visible controls. */
+internal fun sendLibraryAction(
+    action: Action,
+    startsPlayback: Boolean,
+    connected: Boolean,
+    hasOutput: Boolean,
+    send: (Action) -> Boolean,
+): LibraryActionResult = when {
+    !connected -> LibraryActionResult.FAILED
+    startsPlayback && !hasOutput -> LibraryActionResult.SELECT_OUTPUT
+    send(action) -> LibraryActionResult.SENT
+    else -> LibraryActionResult.FAILED
+}

@@ -34,6 +34,22 @@ connection honesty, and reliable controls matter more than decorative density.
   clearing without confusing duplicate track IDs.
 - Library navigation and folder-level actions occupy a distinct control shelf above grouped
   folder and track content.
+- Library's compact breadcrumb/Up/Refresh bar stays above the scrolling list. System Back returns
+  through folder and search history, previews the destination during a predictive gesture, and
+  leaves the current view intact when cancelled. The keyboard and action sheet dismiss first.
+- Folder/search scroll positions survive return navigation, tab changes, and saved-state
+  recreation. Refresh retains visible content and location, with an explicit Retry on errors;
+  superseded loads cannot replace the newest view.
+- Tap a track to play; long press or overflow opens Add to queue / Play as interrupt, with Open
+  containing folder on search results. Play now is deliberately absent from that menu. A leftward
+  row swipe requests enqueue once and returns the row to place; buttons and accessible actions
+  provide the same operation. Playback/enqueue disable offline.
+- A mini-player outside Console shows the current track; tap or swipe up to open Console. The
+  existing dock remains the global play/pause control.
+- The output picker has a close button and an upward-dismiss handle, separated from volume
+  gestures. Settings subtabs support horizontal swipes.
+- Queue dragging previews the drop slot and scrolls at the viewport edges. A changed queue or
+  lost connection cancels the gesture; only a completed, still-current move is sent.
 - The four Console end-of-queue states use explicit accessibility copy: off, continue into the
   library, repeat the whole queue, and repeat the current track.
 - Shared section headers, track rows, and an 8/16/24 layout-spacing scale keep the compact screens
@@ -54,9 +70,12 @@ connection honesty, and reliable controls matter more than decorative density.
 
 ### Device-backed UI coverage
 
-- Add device-backed Compose UI tests when CI has an emulator or managed-device runner. Unit tests
-  cover the responsive breakpoint policy, but gestures, pane layout, and TalkBack still need a
-  real Compose host.
+- Run `./gradlew :app:connectedDebugAndroidTest` (or `gradlew.bat` on Windows) on a connected test
+  device for Library, queue, and mini-player gestures. These tests use fake data without a server
+  login. The JVM suite also covers navigation persistence, loading races, action gating, and queue
+  geometry. CI still needs an emulator runner before it can include the device suite.
+- Extend device coverage to Settings paging, output-sheet dismissal, and responsive pane layouts.
+  Emulator automation does not replace physical one-handed, TalkBack, or Switch Access acceptance.
 
 Android lint now runs in CI alongside compilation and unit tests. Detekt and a separate formatter
 are intentionally not added: at this project size they would mostly duplicate compiler/lint checks

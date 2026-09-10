@@ -8,8 +8,12 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,7 +32,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -57,15 +64,22 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -84,7 +98,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import eu.junak.baton.R
@@ -100,6 +113,10 @@ import eu.junak.baton.ui.devices.DevicesViewModel
 import eu.junak.baton.ui.theme.ActiveAccent
 import eu.junak.baton.ui.theme.BatonSpacing
 import java.util.Locale
+import kotlinx.coroutines.isActive
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -162,17 +179,9 @@ private fun ConsolePortrait(
 ) {
     Column(Modifier.fillMaxSize()) {
         OutputPicker(devicesUi, onDeviceVolume, onShowDevices)
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            contentPadding = PaddingValues(BatonSpacing.Medium),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        QueueList(ui, viewModel, Modifier.weight(1f).fillMaxWidth(), PaddingValues(BatonSpacing.Medium)) {
             if (!ui.connected) item { ConnectionBanner(ui.status, ui.failureDetail) }
             item { ArtworkAndNowPlaying(ui, artworkSize = 240.dp) }
-            queueContent(ui, viewModel)
         }
         ConsoleControlBar(ui, viewModel)
     }
@@ -204,15 +213,7 @@ private fun ConsoleWide(
                 .fillMaxHeight(),
         ) {
             OutputPicker(devicesUi, onDeviceVolume, onShowDevices)
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = BatonSpacing.Medium),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                queueContent(ui, viewModel)
-            }
+            QueueList(ui, viewModel, Modifier.weight(1f).fillMaxWidth(), PaddingValues(horizontal = BatonSpacing.Medium))
             ConsoleControlBar(ui, viewModel)
         }
     }
@@ -276,19 +277,152 @@ private fun ArtworkAndNowPlaying(ui: ConsoleViewModel.UiState, artworkSize: Dp) 
     }
 }
 
-private fun LazyListScope.queueContent(ui: ConsoleViewModel.UiState, viewModel: ConsoleViewModel) {
+@Composable
+private fun QueueList(
+    ui: ConsoleViewModel.UiState,
+    viewModel: ConsoleViewModel,
+    modifier: Modifier,
+    contentPadding: PaddingValues,
+    beforeQueue: LazyListScope.() -> Unit = {},
+) {
+    QueueListContent(ui, remember(viewModel) {
+        QueueCallbacks(
+            onMove = viewModel::moveQueueItem,
+            onJump = viewModel::jumpToQueue,
+            onRemove = { viewModel.removeFromQueue(it) },
+            onClear = { viewModel.clearQueue() },
+            coverUrl = viewModel::coverUrl,
+        )
+    }, modifier, contentPadding, beforeQueue)
+}
+
+internal data class QueueCallbacks(
+    val onMove: (Int, Int, List<Int>?) -> Unit,
+    val onJump: (Int) -> Unit,
+    val onRemove: (Int) -> Unit,
+    val onClear: () -> Unit,
+    val coverUrl: (Int) -> String?,
+)
+
+@Composable
+internal fun QueueListContent(
+    ui: ConsoleViewModel.UiState,
+    actions: QueueCallbacks,
+    modifier: Modifier,
+    contentPadding: PaddingValues,
+    beforeQueue: LazyListScope.() -> Unit = {},
+) {
+    val list = rememberLazyListState()
+    val dragState = remember(list) { QueueDragState(list) }
+    val queue = ui.queue.map { it.trackId }
+    val latestQueue by rememberUpdatedState(queue)
+    val connected by rememberUpdatedState(ui.connected)
+    val haptics = LocalHapticFeedback.current
+    val edge = with(LocalDensity.current) { 64.dp.toPx() }
+    val drag = dragState.drag
+    LaunchedEffect(queue, ui.connected) {
+        if (!ui.connected || dragState.drag?.queue?.let { it != queue } == true) dragState.cancel()
+    }
+    LaunchedEffect(drag?.from) {
+        var previousFrame = withFrameNanos { it }
+        while (isActive && dragState.drag != null) {
+            val frame = withFrameNanos { it }
+            val seconds = ((frame - previousFrame) / 1_000_000_000f).coerceAtMost(0.032f)
+            previousFrame = frame
+            val current = dragState.drag ?: break
+            val layout = list.layoutInfo
+            val speed = queueAutoScrollSpeed(
+                current.top, current.top + current.height,
+                layout.viewportStartOffset.toFloat(), layout.viewportEndOffset.toFloat(), edge,
+            )
+            if (speed != 0f) list.scrollBy(speed * seconds)
+            dragState.updateTarget()
+        }
+    }
+    Box(modifier.clip(RoundedCornerShape(0.dp))) {
+        LazyColumn(
+            Modifier.fillMaxSize().testTag("queue_list").onGloballyPositioned { dragState.coordinates = it }
+                .pointerInput(dragState, queue, ui.connected) {
+                    if (!ui.connected) return@pointerInput
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val index = dragState.handleAt(down.position) ?: return@awaitEachGesture
+                        val longPress = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+                        if (!connected || !dragState.start(index, latestQueue)) return@awaitEachGesture
+                        longPress.consume()
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        try {
+                            var released = false
+                            // Claim moves before LazyColumn's scroll detector once the handle is held.
+                            // Normal list swipes never enter this loop and keep their native scrolling.
+                            while (dragState.drag != null) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (event.changes.count { it.pressed } > 1) break
+                                val change = event.changes.firstOrNull { it.id == longPress.id } ?: break
+                                if (change.isConsumed) break
+                                if (!change.pressed) {
+                                    change.consume()
+                                    released = true
+                                    break
+                                }
+                                dragState.move(change.positionChange().y)
+                                change.consume()
+                            }
+                            val completed = dragState.drag
+                            if (released) currentEvent.changes.forEach { it.consume() }
+                            if (released && connected && completed != null && completed.queue == latestQueue) {
+                                actions.onMove(completed.from, completed.target, completed.queue)
+                            }
+                        } finally {
+                            dragState.cancel()
+                        }
+                    }
+                },
+            state = list,
+            contentPadding = contentPadding,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            beforeQueue()
+            queueContent(ui, actions, dragState)
+        }
+        drag?.let { active ->
+            val entry = ui.queue.getOrNull(active.from)
+            if (entry != null && queue == active.queue) {
+                Surface(
+                    Modifier.fillMaxWidth().padding(horizontal = BatonSpacing.Medium)
+                        .graphicsLayer { translationY = active.top + list.layoutInfo.beforeContentPadding }
+                        .testTag("queue_drag_preview")
+                        .clearAndSetSemantics { },
+                    shadowElevation = BatonSpacing.Small,
+                    tonalElevation = 3.dp,
+                ) {
+                    TrackListItem(
+                        entry.track?.effectiveTitle ?: stringResource(R.string.track_fallback, entry.trackId),
+                        entry.track?.artist,
+                        actions.coverUrl(entry.trackId),
+                        trailingContent = { Icon(Icons.Filled.DragHandle, null, Modifier.padding(BatonSpacing.Medium)) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun LazyListScope.queueContent(ui: ConsoleViewModel.UiState, actions: QueueCallbacks, dragState: QueueDragState) {
     if (ui.queue.isEmpty()) return
-    item { QueueHeader(ui.queue.size, enabled = ui.connected, onClear = viewModel::clearQueue) }
+    item { QueueHeader(ui.queue.size, enabled = ui.connected, onClear = actions.onClear) }
     itemsIndexed(ui.queue, key = { index, entry -> "q:$index:${entry.trackId}" }) { index, entry ->
         QueueRow(
             entry = entry,
             index = index,
             queueSize = ui.queue.size,
-            coverUrl = viewModel.coverUrl(entry.trackId),
+            dragState = dragState,
+            coverUrl = actions.coverUrl(entry.trackId),
             enabled = ui.connected,
-            onPlay = { viewModel.jumpToQueue(index) },
-            onMove = viewModel::moveQueueItem,
-            onRemove = { viewModel.removeFromQueue(index) },
+            onPlay = { actions.onJump(index) },
+            onMove = { from, to -> actions.onMove(from, to, null) },
+            onRemove = { actions.onRemove(index) },
         )
     }
 }
@@ -330,6 +464,10 @@ private fun DeviceTopSheet(
     onDismiss: () -> Unit,
 ) {
     BackHandler(enabled = visible) { onDismiss() }
+    var dragOffset by remember(visible) { mutableFloatStateOf(0f) }
+    val dismiss by rememberUpdatedState(onDismiss)
+    val dismissThreshold = with(LocalDensity.current) { 48.dp.toPx() }
+    val closeLabel = stringResource(R.string.devices_close)
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(
             visible = visible,
@@ -353,12 +491,41 @@ private fun DeviceTopSheet(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .graphicsLayer { translationY = dragOffset }
                     .pointerInput(Unit) { detectTapGestures {} },
                 shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
                 tonalElevation = 3.dp,
                 shadowElevation = 8.dp,
             ) {
-                DevicePicker(viewModel)
+                Column {
+                    Row(
+                        Modifier.fillMaxWidth().height(48.dp)
+                            .pointerInput(dismissThreshold) {
+                                detectVerticalDragGestures(
+                                    onDragStart = { dragOffset = 0f },
+                                    onVerticalDrag = { change, amount ->
+                                        change.consume()
+                                        dragOffset = (dragOffset + amount).coerceIn(-size.height * 3f, 0f)
+                                    },
+                                    onDragEnd = {
+                                        if (dragOffset < -dismissThreshold) dismiss()
+                                        dragOffset = 0f
+                                    },
+                                    onDragCancel = { dragOffset = 0f },
+                                )
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Spacer(Modifier.width(48.dp))
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.DragHandle, contentDescription = null)
+                        }
+                        IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, closeLabel) }
+                    }
+                    Box(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                        DevicePicker(viewModel)
+                    }
+                }
             }
         }
     }
@@ -642,14 +809,18 @@ private fun QueueRow(
     entry: QueueEntry,
     index: Int,
     queueSize: Int,
+    dragState: QueueDragState,
     coverUrl: String?,
     enabled: Boolean,
     onPlay: () -> Unit,
     onMove: (Int, Int) -> Unit,
     onRemove: () -> Unit,
 ) {
-    var dragOffset by remember(index) { mutableFloatStateOf(0f) }
-    var rowHeightPx by remember(index) { mutableIntStateOf(0) }
+    val drag = dragState.drag
+    val markerColor = MaterialTheme.colorScheme.primary
+    DisposableEffect(index, dragState) {
+        onDispose { dragState.handles.remove(index) }
+    }
     val title = entry.track?.effectiveTitle ?: stringResource(R.string.track_fallback, entry.trackId)
     val playLabel = stringResource(R.string.console_play_queue, title)
     val reorderLabel = stringResource(R.string.console_reorder_queue, title)
@@ -683,22 +854,7 @@ private fun QueueRow(
                                 }
                             }
                         }
-                        .pointerInput(index, queueSize, enabled, rowHeightPx) {
-                            if (!enabled || rowHeightPx <= 0) return@pointerInput
-                            detectDragGesturesAfterLongPress(
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    dragOffset += amount.y
-                                },
-                                onDragEnd = {
-                                    val target = (index + (dragOffset / rowHeightPx).roundToInt())
-                                        .coerceIn(0, queueSize - 1)
-                                    dragOffset = 0f
-                                    if (target != index) onMove(index, target)
-                                },
-                                onDragCancel = { dragOffset = 0f },
-                            )
-                        },
+                        .onGloballyPositioned { dragState.handles[index] = it },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Filled.DragHandle, contentDescription = null)
@@ -709,9 +865,14 @@ private fun QueueRow(
             }
         },
         modifier = Modifier
-            .zIndex(if (dragOffset == 0f) 0f else 1f)
-            .graphicsLayer { translationY = dragOffset }
-            .onSizeChanged { rowHeightPx = it.height }
+            .graphicsLayer { alpha = if (drag?.from == index) 0.3f else 1f }
+            .drawWithContent {
+                drawContent()
+                if (drag != null && drag.target == index && drag.target != drag.from) {
+                    val y = if (drag.target > drag.from) size.height else 0f
+                    drawLine(markerColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 3.dp.toPx())
+                }
+            }
             .clickable(enabled = enabled, onClickLabel = playLabel, onClick = onPlay),
     )
 }

@@ -26,7 +26,7 @@ origin setting.
 |---|---|
 | **First-launch setup** (server URL → credentials, HTTPS-only, reachability probe) | ✅ Working |
 | **Console** — connection status, now-playing, play/pause, skip, **seek**, **shuffle/repeat**, **live queue** (jump/reorder/remove/clear) | ✅ Working |
-| **Library** — browse folder tree, debounced search, play track/folder, enqueue | ✅ Working |
+| **Library** — folder Back/breadcrumbs, saved browsing position, pull-to-refresh, debounced search, tap to play, swipe to enqueue, track action sheet | ✅ Working |
 | **Settings** — General / Playback / Updates tabs, console-awake opt-in, account + **sign-out**, server + "Open web app" | ✅ Working |
 | **Session** — modes, cues, soundboard (tap = fire, hold = loop), EQ presets, interrupts | ✅ Working |
 | **Devices + phone-as-speaker** (single-output-first picker, direct Console volume, optional multi-output, native preset effects, Play prompts when no output is active, Media3 notification) | ✅ Working |
@@ -50,8 +50,8 @@ build-workflow caveats are load-bearing:
 
 1. **Build with Run ▶, "Build → Build APK(s)", or `:app:assembleDebug` — *not* "Make Project"
    (Ctrl+F9).** AGP 9 dropped the `androidTestClasses` anchor task that "Make Project" still
-   requests, so Make fails at task selection. (The `androidTest` variant was removed from `:app`
-   for the same reason — Compose UI tests return in a later pass.)
+   requests, so Make fails at task selection. Use the explicit Gradle tasks below for builds
+   and device-backed Compose tests.
 2. Command-line builds need `JAVA_HOME` pointing at a JDK 17+ (Android Studio's bundled
    `jbr` works: `C:\Program Files\Android\Android Studio\jbr`).
 
@@ -60,6 +60,16 @@ The full local/CI gate is:
 ```powershell
 .\gradlew.bat assembleDebug test lintDebug
 ```
+
+With an Android emulator or test phone connected, run the additional Compose gesture suite:
+
+```powershell
+.\gradlew.bat :app:connectedDebugAndroidTest
+```
+
+The gesture tests use local fake data and need no server login. They are separate from the
+JVM/CI gate, which does not provision an emulator. Physical TalkBack and one-handed gesture
+acceptance remain manual checks.
 
 CI selects the JetBrains JDK 21 declared by the Gradle daemon toolchain, while
 the application's Java/Kotlin bytecode target remains 17. Tag releases run the

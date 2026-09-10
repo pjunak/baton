@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -73,6 +75,8 @@ class ConsoleViewModel @Inject constructor(
 
     private val trackCache = mutableMapOf<Int, Track>()
     private val nowPlaying = MutableStateFlow<Track?>(null)
+    /** Metadata-only subscription for the dock; it must not start the Console position ticker. */
+    val currentTrack: StateFlow<Track?> = nowPlaying.asStateFlow()
     private val queueEntries = MutableStateFlow<List<QueueEntry>>(emptyList())
 
     /** Dead-reckoned position: snapped to the server on each report, ticked locally between. */
@@ -171,7 +175,10 @@ class ConsoleViewModel @Inject constructor(
             syncClient.state
                 .map { activeTrackId(it) }
                 .distinctUntilChanged()
-                .collect { trackId -> nowPlaying.value = trackId?.let { resolveTrack(it) } }
+                .collectLatest { trackId ->
+                    nowPlaying.value = trackCache[trackId]
+                    nowPlaying.value = trackId?.let { resolveTrack(it) }
+                }
         }
     }
 
@@ -264,9 +271,10 @@ class ConsoleViewModel @Inject constructor(
     }
 
     /** Move one queue slot while preserving duplicates and every other slot's order. */
-    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+    fun moveQueueItem(fromIndex: Int, toIndex: Int, expectedQueue: List<Int>? = null) {
         val ids = syncClient.state.value?.ambient?.queue ?: return
-        val reordered = moveQueueSlot(ids, fromIndex, toIndex) ?: return
+        if (syncClient.status.value != ConnectionStatus.CONNECTED) return
+        val reordered = moveQueueSlot(ids, fromIndex, toIndex, expectedQueue) ?: return
         syncClient.send(Action.AmbientSetQueue(reordered))
     }
 
@@ -280,7 +288,8 @@ class ConsoleViewModel @Inject constructor(
 }
 
 /** Pure index-based reorder so repeated track ids remain distinct queue slots. */
-internal fun moveQueueSlot(ids: List<Int>, fromIndex: Int, toIndex: Int): List<Int>? {
+internal fun moveQueueSlot(ids: List<Int>, fromIndex: Int, toIndex: Int, expectedQueue: List<Int>? = null): List<Int>? {
+    if (expectedQueue != null && ids != expectedQueue) return null
     if (fromIndex !in ids.indices || toIndex !in ids.indices || fromIndex == toIndex) return null
     return ids.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
 }

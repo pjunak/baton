@@ -8,6 +8,9 @@
     <string name="action_fire">Fire</string>
     <string name="action_stop">Stop</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_refresh">Refresh</string>
     <string name="connection_connecting">Connecting…</string>
     <string name="connection_reconnecting">Disconnected — reconnecting</string>
     <string name="unknown_artist">Unknown artist</string>
@@ -58,8 +61,6 @@
     <string name="library_search">Search library</string>
     <string name="library_no_matches">No matches</string>
     <string name="library_up">Up</string>
-    <string name="library_path">/%1$s</string>
-    <string name="library_folder_actions">Folder actions</string>
     <string name="library_play_folder">Play this folder</string>
     <string name="library_folders">Folders</string>
     <string name="library_tracks">Tracks</string>
@@ -67,7 +68,16 @@
     <string name="library_load_error">Couldn’t load this folder.</string>
     <string name="library_play_track">Play %1$s</string>
     <string name="library_track_options">More options for %1$s</string>
-    <string name="library_play_now">Play now</string>
+    <string name="library_clear_search">Clear search</string>
+    <string name="library_open_folder">Open containing folder</string>
+    <string name="library_search_error">Couldn’t search the library.</string>
+    <string name="library_search_return">Search: %1$s</string>
+    <string name="library_back_to">Back to %1$s</string>
+    <string name="library_send_failed">Couldn’t send the action. Check the connection and try again.</string>
+    <string name="library_queue_requested">Queue request sent</string>
+    <string name="library_select_output">Choose an output, then return to Library and tap play again.</string>
+    <string name="console_open">Open Console</string>
+    <string name="devices_close">Close output picker</string>
     <string name="library_add_queue">Add to queue</string>
     <string name="library_play_interrupt">Play as interrupt</string>
     <plurals name="library_track_count">

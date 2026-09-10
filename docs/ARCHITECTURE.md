@@ -78,15 +78,33 @@ the phone speaker, wired audio, Bluetooth headphones, or Bluetooth speakers.
 - **Console:** cover art, now-playing metadata, seek, transport, shuffle/repeat, queue jumping,
   reordering, removal and clearing, plus the output picker. Starting playback with no active output
   routes to that picker instead of sending an inaudible resume. Mutating controls disable offline.
-- **Library:** full folder hierarchy, folder contents, debounced search, play/enqueue, and cover
-  thumbnails. Authoring stays in the web app.
+- **Library:** full folder hierarchy, persistent breadcrumbs, folder/search Back history, saved
+  scroll positions, refresh/retry, debounced search, play/enqueue, and cover thumbnails. A local
+  `LibraryBrowser` owns browsing history and cancels superseded loads; request generations also
+  reject late responses. `SavedStateHandle` persists bounded navigation/scroll state, while a small
+  in-memory content cache speeds return visits. This is UI state, not a playback reducer or an
+  offline library. Authoring stays in the web app.
 - **Session:** active mode, cues, soundboards and loops, EQ presets, and interrupts.
 - **Settings:** General / Playback / Updates subtabs for account, server/web link, Keep Console
-  awake, app version, and updater state.
+  awake, app version, and updater state. Tabs support taps and horizontal paging.
 - **Devices:** a Console modal listing connected devices, live output activation, and canonical
   per-device volume. Selection is single-output by default; users can opt into multiple outputs in
   the modal. When exactly one output is active, its volume is also available beside the Console
   speaker button. The phone row controls the local speaker service as well as server membership.
+
+The main shell saves each tab's Compose state and shows a metadata-only mini-player outside
+Console. Its subscription does not start the Console seek ticker. Library taps still play
+immediately; long press/overflow opens an action sheet, and a completed row swipe requests enqueue.
+Gesture completion state is never persisted or replayed. Playback starts without an output open
+the output picker and require a fresh tap after selection; enqueue does not require an output.
+Socket acceptance is reported as a request sent, with playback and queue state still reconciled
+from the server.
+
+Queue drag gestures belong to the list so they survive scrolling the original row out of view.
+A floating row and insertion marker preview the destination; edge holding scrolls the viewport.
+Only release sends the move. Cancellation, disconnect, or a changed canonical queue discards the
+drag, and dispatch checks the original queue again. Accessible move buttons use the same server
+action path.
 
 Queue ids are batch-resolved through `GET /api/library/tracks?ids=...`; folder navigation combines
 `GET /api/library/folders` with `GET /api/library/tree?path=...`. These endpoints are already part

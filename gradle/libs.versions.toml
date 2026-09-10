@@ -38,6 +38,8 @@ timber = "5.0.1"
 # Test
 junit = "4.13.2"
 turbine = "1.2.1"
+androidxTestRunner = "1.7.0"
+androidxEspresso = "3.7.0"
 
 [libraries]
 # Core / lifecycle
@@ -90,6 +92,10 @@ timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 # Test
 junit = { module = "junit:junit", version.ref = "junit" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
+androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "androidxEspresso" }
+androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -37,10 +39,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +57,7 @@ import eu.junak.baton.feature.update.UpdateState
 import eu.junak.baton.ui.components.SectionHeader
 import eu.junak.baton.ui.theme.BatonSpacing
 import java.io.File
+import kotlinx.coroutines.launch
 
 private enum class SettingsTab {
     GENERAL,
@@ -72,8 +73,9 @@ fun SettingsScreen(
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var selectedTab by rememberSaveable { mutableIntStateOf(SettingsTab.GENERAL.ordinal) }
     val tabs = remember { SettingsTab.entries }
+    val pagerState = rememberPagerState { tabs.size }
+    val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = BatonSpacing.Medium, vertical = 14.dp)) {
@@ -85,11 +87,11 @@ fun SettingsScreen(
             )
         }
 
-        SecondaryTabRow(selectedTabIndex = selectedTab) {
+        SecondaryTabRow(selectedTabIndex = pagerState.currentPage) {
             tabs.forEach { tab ->
                 Tab(
-                    selected = selectedTab == tab.ordinal,
-                    onClick = { selectedTab = tab.ordinal },
+                    selected = pagerState.currentPage == tab.ordinal,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(tab.ordinal) } },
                     text = {
                         Text(
                             when (tab) {
@@ -103,8 +105,8 @@ fun SettingsScreen(
             }
         }
 
-        Box(Modifier.weight(1f)) {
-            when (tabs[selectedTab.coerceIn(0, tabs.lastIndex)]) {
+        HorizontalPager(state = pagerState, modifier = Modifier.weight(1f), verticalAlignment = Alignment.Top) { page ->
+            when (tabs[page]) {
                 SettingsTab.GENERAL -> GeneralSettings(
                     username = ui.username,
                     serverUrl = ui.serverUrl,

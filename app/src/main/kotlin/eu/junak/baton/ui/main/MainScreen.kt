@@ -41,6 +41,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,6 +69,8 @@ import eu.junak.baton.feature.playback.PlaybackController
 import eu.junak.baton.feature.update.UpdateState
 import eu.junak.baton.feature.update.Updater
 import eu.junak.baton.ui.console.ConsoleScreen
+import eu.junak.baton.ui.console.ConsoleViewModel
+import eu.junak.baton.ui.components.MiniPlayer
 import eu.junak.baton.ui.library.LibraryScreen
 import eu.junak.baton.ui.session.SessionScreen
 import eu.junak.baton.ui.settings.SettingsScreen
@@ -77,6 +81,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private enum class MainTab(@StringRes val label: Int, val icon: ImageVector) {
@@ -153,6 +158,7 @@ class MainViewModel @Inject constructor(
 fun MainScreen(
     onSignedOut: () -> Unit,
     viewModel: MainViewModel = hiltViewModel(),
+    consoleViewModel: ConsoleViewModel = hiltViewModel(),
 ) {
     var tabIndex by rememberSaveable { mutableIntStateOf(0) }
     var openOutputPicker by rememberSaveable { mutableStateOf(false) }
@@ -160,6 +166,17 @@ fun MainScreen(
     val playState by viewModel.playState.collectAsStateWithLifecycle()
     val updateAvailable by viewModel.updateAvailable.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val tabState = rememberSaveableStateHolder()
+    val currentTrack by consoleViewModel.currentTrack.collectAsStateWithLifecycle()
+    val showMiniPlayer = tabIndex != MainTab.CONSOLE.ordinal && currentTrack != null
+    val scope = rememberCoroutineScope()
+    val selectOutputMessage = stringResource(R.string.library_select_output)
+    val showMessage: (String) -> Unit = { text ->
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(text)
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -192,25 +209,31 @@ fun MainScreen(
 
     Scaffold(
         bottomBar = {
-            DockedNavBar(
-                selectedIndex = tabIndex,
-                onSelect = { tabIndex = it },
-                isPlaying = playState.isPlaying,
-                enabled = playState.connected,
-                onPlayPause = {
-                    if (shouldSelectOutputBeforePlay(
-                            isPlaying = playState.isPlaying,
-                            hasActiveOutput = playState.hasActiveOutput,
-                        )
-                    ) {
-                        tabIndex = MainTab.CONSOLE.ordinal
-                        openOutputPicker = true
-                    } else {
-                        viewModel.playPause()
-                    }
-                },
-                settingsBadge = updateAvailable,
-            )
+            Column {
+                if (showMiniPlayer) currentTrack?.let { track ->
+                    MiniPlayer(track, consoleViewModel.coverUrl(track.id)) { tabIndex = MainTab.CONSOLE.ordinal }
+                }
+                DockedNavBar(
+                    selectedIndex = tabIndex,
+                    onSelect = { tabIndex = it },
+                    isPlaying = playState.isPlaying,
+                    enabled = playState.connected,
+                    onPlayPause = {
+                        if (shouldSelectOutputBeforePlay(
+                                isPlaying = playState.isPlaying,
+                                hasActiveOutput = playState.hasActiveOutput,
+                            )
+                        ) {
+                            tabIndex = MainTab.CONSOLE.ordinal
+                            openOutputPicker = true
+                        } else {
+                            viewModel.playPause()
+                        }
+                    },
+                    settingsBadge = updateAvailable,
+                    raisedPlayButton = !showMiniPlayer,
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
@@ -219,14 +242,25 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            when (MainTab.entries[tabIndex.coerceIn(0, MainTab.entries.lastIndex)]) {
-                MainTab.CONSOLE -> ConsoleScreen(
-                    openDevices = openOutputPicker,
-                    onOpenDevicesHandled = { openOutputPicker = false },
-                )
-                MainTab.LIBRARY -> LibraryScreen()
-                MainTab.SESSION -> SessionScreen()
-                MainTab.SETTINGS -> SettingsScreen(onSignedOut = onSignedOut)
+            val selectedTab = MainTab.entries[tabIndex.coerceIn(0, MainTab.entries.lastIndex)]
+            tabState.SaveableStateProvider(selectedTab.name) {
+                when (selectedTab) {
+                    MainTab.CONSOLE -> ConsoleScreen(
+                        openDevices = openOutputPicker,
+                        onOpenDevicesHandled = { openOutputPicker = false },
+                        viewModel = consoleViewModel,
+                    )
+                    MainTab.LIBRARY -> LibraryScreen(
+                        onSelectOutput = {
+                            tabIndex = MainTab.CONSOLE.ordinal
+                            openOutputPicker = true
+                            showMessage(selectOutputMessage)
+                        },
+                        onMessage = showMessage,
+                    )
+                    MainTab.SESSION -> SessionScreen()
+                    MainTab.SETTINGS -> SettingsScreen(onSignedOut = onSignedOut)
+                }
             }
         }
     }
@@ -248,6 +282,7 @@ private fun DockedNavBar(
     enabled: Boolean,
     onPlayPause: () -> Unit,
     settingsBadge: Boolean,
+    raisedPlayButton: Boolean,
 ) {
     Box(Modifier.fillMaxWidth()) {
         Surface(tonalElevation = 3.dp, shadowElevation = 8.dp, modifier = Modifier.fillMaxWidth()) {
@@ -255,7 +290,7 @@ private fun DockedNavBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .height(56.dp),
+                    .height(if (raisedPlayButton) 56.dp else 64.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 NavItem(MainTab.CONSOLE, selectedIndex == 0) { onSelect(0) }
@@ -270,7 +305,7 @@ private fun DockedNavBar(
             enabled = enabled,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = -32.dp) // half the button height up: its center lands on the bar's top edge
+                .offset(y = if (raisedPlayButton) -32.dp else 0.dp)
                 .size(64.dp),
         ) {
             Icon(
