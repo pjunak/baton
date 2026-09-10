@@ -61,6 +61,14 @@ The full local/CI gate is:
 .\gradlew.bat assembleDebug test lintDebug
 ```
 
+CI selects the JetBrains JDK 21 declared by the Gradle daemon toolchain, while
+the application's Java/Kotlin bytecode target remains 17. Tag releases run the
+full debug gate plus `lintRelease assembleRelease` in one Gradle invocation
+before publishing. Test and lint reports are retained for 14 days, including
+on failed builds. Release tags use `vMAJOR.MINOR.PATCH` (optionally followed by
+a prerelease suffix); minor and patch must stay below 100 for the existing
+Android version-code encoding.
+
 Typical loop: open in Android Studio → let it sync → **Run ▶** on an emulator or device → the app
 opens to the setup wizard.
 
