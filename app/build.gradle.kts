@@ -19,7 +19,7 @@ val keystoreProperties = Properties().apply {
     }
 }
 
-// Version is injected by CI from the git tag (-Pbaton.versionName / -Pbaton.versionCode);
+// Version is injected by CI from the tested commit and workflow build number (-Pbaton.versionName / -Pbaton.versionCode);
 // sensible local defaults otherwise.
 val appVersionName = (project.findProperty("baton.versionName") as String?) ?: "0.1.0"
 val appVersionCode = (project.findProperty("baton.versionCode") as String?)?.toIntOrNull() ?: 1

@@ -9,15 +9,16 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same ref supersedes an in-flight run.
+# Main publications finish in order; PR verification may be superseded.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  queue: max
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
 
@@ -34,8 +35,62 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build, unit-test & lint
-        run: ./gradlew assembleDebug test lintDebug --stacktrace
+      - name: Test the release publisher
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+
+      - name: Derive commit and Android build identity
+        id: v
+        run: python3 scripts/tested_release.py identity
+
+      - name: Materialise release keystore
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${KEYSTORE_BASE64:?Release keystore is required}"
+          : "${STORE_PASSWORD:?Release store password is required}"
+          : "${KEY_ALIAS:?Release key alias is required}"
+          : "${KEY_PASSWORD:?Release key password is required}"
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          {
+            echo "storeFile=$RUNNER_TEMP/release.keystore"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > keystore.properties
+
+      - name: Build, unit-test and lint; sign tested main commits
+        env:
+          VERSION_NAME: ${{ steps.v.outputs.name }}
+          VERSION_CODE: ${{ steps.v.outputs.code }}
+        run: |
+          tasks=(assembleDebug test lintDebug)
+          if [[ "$GITHUB_REF" == refs/heads/main && "$GITHUB_EVENT_NAME" == push ]]; then
+            tasks+=(lintRelease assembleRelease)
+          fi
+          ./gradlew "${tasks[@]}" "-Pbaton.versionName=$VERSION_NAME" "-Pbaton.versionCode=$VERSION_CODE" --stacktrace
+
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f -- keystore.properties "$RUNNER_TEMP/release.keystore"
+
+      - name: Prepare verified APK
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: python3 scripts/tested_release.py prepare
+
+      - name: Retain tested APK for publication
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: tested-apk
+          path: release-output/*.apk
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Retain test and lint reports
         if: ${{ !cancelled() }}
@@ -48,3 +103,22 @@ jobs:
             **/build/reports/lint-results-*
           if-no-files-found: ignore
           retention-days: 14
+
+  publish:
+    name: Publish tested APK
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: tested-apk
+          path: release-output
+      - name: Publish the signed tested commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/tested_release.py publish
