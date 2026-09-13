@@ -152,10 +152,11 @@ canonical `crossfade_ms` remains a separate dual-ambient-player capability.
 ## Updater
 
 `feature-update` checks `BuildConfig.UPDATE_REPO` through the GitHub Releases API. A silent launch
-check only badges Settings when a newer version exists. Manual Settings actions expose checking,
+check only badges Settings when a newer tested Android build exists. Manual Settings actions expose checking,
 release notes, download progress, install readiness, and errors.
 
-The APK is streamed into `cacheDir/updates` and handed to the system installer through a
+The APK is streamed into `cacheDir/updates`, checked against its published size and SHA-256,
+and verified for package identity/build number before reaching the system installer through a
 `FileProvider`. Installation requires the one-time Android permission to install unknown apps.
 The server address is never compiled into the APK; only the public update repository is.
 
@@ -172,10 +173,20 @@ $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 Use Android Studio Run, Build APK(s), or `assembleDebug`. Android Studio's Make Project action is
 not supported while it expects the removed `androidTestClasses` anchor task.
 
-- `.github/workflows/ci.yml` runs `assembleDebug test lintDebug` for pushes and pull requests.
-- `.github/workflows/release.yml` derives version name/code from a `v*` tag, materializes signing
-  configuration from `KEYSTORE_BASE64`, `KEYSTORE_STORE_PASSWORD`, `KEYSTORE_KEY_ALIAS`, and
-  `KEYSTORE_KEY_PASSWORD`, builds the minified release APK, and publishes a GitHub Release.
+- `.github/workflows/ci.yml` runs the debug build, unit tests and lint for pull requests;
+  main pushes additionally run `lintRelease assembleRelease` in the same Gradle invocation.
+- Main signing uses the existing `KEYSTORE_BASE64`, `KEYSTORE_STORE_PASSWORD`,
+  `KEYSTORE_KEY_ALIAS` and `KEYSTORE_KEY_PASSWORD`; CI always removes temporary key files.
+- A separate, dependent publication job uses only the already tested APK and GitHub's
+  temporary `contents: write` token. A failed verification cannot publish. Releases are
+  draft until the uploaded asset's digest is confirmed; reruns cannot replace released
+  bytes, and older builds cannot take over the latest-release pointer.
+- `scripts/tested_release.py` assigns `100000 + ci.yml run_number` as Android versionCode
+  and uses a full-commit release tag. The app reads that number from the APK asset name,
+  checks its commit against the tag, and ignores the display version when deciding
+  availability. Keep the workflow sequence/offset stable to preserve Android upgrade order.
+- The tag's `v0.3.7` prefix bridges older semver-only updaters without requiring a new
+  signing identity. No automatic download or installation is introduced.
 - Without `keystore.properties`, a local release build deliberately falls back to debug signing.
 
 ## Deferred work

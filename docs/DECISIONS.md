@@ -77,10 +77,14 @@ review latency and account friction.
 A single **upload key** is kept forever so a future Play App Signing migration stays clean.
 Unauthenticated Releases API (public repo) is ample for launch-time checks.
 
-**Amendment (as built).** The install step uses the system installer (`FileProvider` +
-`ACTION_VIEW`) rather than the `PackageInstaller` session API — the confirmation UI it shows is
-a feature for a sideloaded updater, not friction — and the version compare runs on the release
-tag vs the installed `versionName` (both derive from the same git tag in CI, so they agree).
+**Amendment (tested commits).** Each successful main build publishes its signed APK;
+version tags are no longer a release gate. The installer remains `FileProvider` +
+`ACTION_VIEW`, including Android's confirmation. Availability compares the increasing
+Android versionCode, independently of the display version. The source commit, asset
+name and published digest must agree before the app offers/downloads that package.
+The release job cannot replace an existing commit's bytes or move latest backwards.
+The existing signing key is retained, and the first `v0.3.7-commit.<SHA>` release is
+compatible with discovery by the old semver-only updater.
 
 ---
 

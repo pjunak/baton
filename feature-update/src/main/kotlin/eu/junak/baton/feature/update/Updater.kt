@@ -28,7 +28,10 @@ sealed interface UpdateState {
     data object Idle : UpdateState
     data object Checking : UpdateState
     data object UpToDate : UpdateState
-    data class Available(val version: String, val notes: String?, val downloadUrl: String) : UpdateState
+    data class Available(
+        val version: String, val notes: String?, val downloadUrl: String,
+        val versionCode: Long, val sha256: String, val size: Long,
+    ) : UpdateState
     data class Downloading(val progress: Float) : UpdateState
     data class ReadyToInstall(val apk: File, val version: String) : UpdateState
     data class Error(val message: String) : UpdateState
@@ -36,7 +39,7 @@ sealed interface UpdateState {
 
 /**
  * In-app self-update: checks the configured GitHub repo's latest release
- * ([BuildConfig.UPDATE_REPO]) and, if its version is newer than the installed one,
+ * ([BuildConfig.UPDATE_REPO]) and, if its tested build number is newer than the installed one,
  * downloads the APK asset and hands it to the system installer. The user's server is
  * never involved — this only talks to api.github.com. Downloads run on the updater's
  * own scope, so navigating away from Settings doesn't cancel them.
@@ -54,7 +57,7 @@ class Updater @Inject constructor(
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val state: StateFlow<UpdateState> = _state.asStateFlow()
 
-    /** Query the latest release and compare versions. Result lands in [state]. */
+    /** Query the latest tested commit and compare Android build numbers. Result lands in [state]. */
     fun check() {
         _state.value = UpdateState.Checking
         scope.launch { _state.value = resolveLatest() }
@@ -99,30 +102,37 @@ class Updater @Inject constructor(
                 )
             }
         }
-        val latest = release.tagName.removePrefix("v").trim()
-        val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
-        return when {
-            apk == null -> UpdateState.Error(context.getString(R.string.update_error_no_apk))
-            isNewerVersion(latest, currentVersion()) ->
-                UpdateState.Available(latest, release.body?.takeIf { it.isNotBlank() }, apk.browserDownloadUrl)
-            else -> UpdateState.UpToDate
-        }
+        return runCatching {
+            val update = testedUpdate(release, "${repo.first}/${repo.second}", currentVersionCode())
+            if (update == null) UpdateState.UpToDate else UpdateState.Available(
+                update.label, release.body?.takeIf { it.isNotBlank() }, update.url,
+                update.versionCode, update.sha256, update.size,
+            )
+        }.getOrElse { UpdateState.Error(context.getString(R.string.update_error_package)) }
     }
 
     /** Download the APK for an [available] update, then launch the installer. */
     fun download(available: UpdateState.Available) {
         _state.value = UpdateState.Downloading(0f)
         scope.launch {
-            val dest = File(context.cacheDir, "updates/baton-${available.version}.apk")
+            val dest = File(context.cacheDir, "updates/baton-${available.versionCode}.apk")
             // Evict APKs from previous updates — they'd otherwise pile up in
             // the cache dir forever (one per release ever installed).
             dest.parentFile?.listFiles()?.forEach { if (it != dest) it.delete() }
-            runCatching { downloadTo(available.downloadUrl, dest) { p -> _state.value = UpdateState.Downloading(p) } }
+            runCatching {
+                downloadTo(available.downloadUrl, dest, available.size) { p -> _state.value = UpdateState.Downloading(p) }
+                verifyPackageBytes(dest, available.sha256, available.size)
+                val info = context.packageManager.getPackageArchiveInfo(dest.path, 0)
+                if (info?.packageName != context.packageName || info.longVersionCode != available.versionCode) {
+                    throw IOException(context.getString(R.string.update_error_package))
+                }
+            }
                 .onSuccess {
                     _state.value = UpdateState.ReadyToInstall(dest, available.version)
                     install(dest)
                 }
                 .onFailure {
+                    dest.delete()
                     _state.value = UpdateState.Error(
                         context.getString(R.string.update_error_download, it.message),
                     )
@@ -164,7 +174,7 @@ class Updater @Inject constructor(
         _state.value = UpdateState.Idle
     }
 
-    private suspend fun downloadTo(url: String, dest: File, onProgress: (Float) -> Unit) {
+    private suspend fun downloadTo(url: String, dest: File, expectedSize: Long, onProgress: (Float) -> Unit) {
         dest.parentFile?.mkdirs()
         client.newCall(Request.Builder().url(url).build()).execute().use { response ->
             if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
@@ -177,8 +187,9 @@ class Updater @Inject constructor(
                     while (true) {
                         val read = input.read(buffer)
                         if (read < 0) break
-                        output.write(buffer, 0, read)
                         downloaded += read
+                        if (downloaded > expectedSize) throw IOException(context.getString(R.string.update_error_package))
+                        output.write(buffer, 0, read)
                         if (total > 0) onProgress((downloaded.toFloat() / total).coerceIn(0f, 1f))
                     }
                 }
@@ -189,9 +200,9 @@ class Updater @Inject constructor(
     private fun repoParts(): Pair<String, String>? =
         BuildConfig.UPDATE_REPO.split("/").takeIf { it.size == 2 }?.let { it[0] to it[1] }
 
-    private fun currentVersion(): String {
+    private fun currentVersionCode(): Long {
         val info: PackageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-        return info.versionName ?: "0"
+        return info.longVersionCode
     }
 
     private companion object {

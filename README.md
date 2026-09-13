@@ -72,12 +72,24 @@ JVM/CI gate, which does not provision an emulator. Physical TalkBack and one-han
 acceptance remain manual checks.
 
 CI selects the JetBrains JDK 21 declared by the Gradle daemon toolchain, while
-the application's Java/Kotlin bytecode target remains 17. Tag releases run the
-full debug gate plus `lintRelease assembleRelease` in one Gradle invocation
-before publishing. Test and lint reports are retained for 14 days, including
-on failed builds. Release tags use `vMAJOR.MINOR.PATCH` (optionally followed by
-a prerelease suffix); minor and patch must stay below 100 for the existing
-Android version-code encoding.
+application bytecode targets Java 17. Pull requests run the debug build, unit tests
+and lint. Each push to main also runs release lint, signs the APK with the existing
+key, then publishes that tested commit as a GitHub Release. Failed checks publish
+nothing. Reports and intermediate APKs are retained for 14 days; published APKs
+remain available as release assets.
+
+In **Settings → Updates**, Baton offers the newest tested build even when its
+human-facing version number has not changed. Download/install still requires your
+action and Android's confirmation. There is no personal access token for checking,
+downloading or publishing these public APKs: CI uses GitHub's temporary job token.
+
+The first commit build keeps a `v0.3.7-commit.<SHA>` tag so existing v0.3.6 installs
+can discover it through their old updater. Subsequent checks compare Android build
+numbers (`100000 + ci.yml run_number`), not version names. Keep that workflow and
+number offset stable; a replacement pipeline must continue above all released
+codes. Tags are created by CI, so a manual version tag is no longer a release step.
+Release assets encode the build number and full commit, and downloaded bytes are
+checked against GitHub's SHA-256 digest before handing the APK to Android.
 
 Typical loop: open in Android Studio → let it sync → **Run ▶** on an emulator or device → the app
 opens to the setup wizard.

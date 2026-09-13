@@ -32,4 +32,5 @@ data class GitHubAsset(
     val browserDownloadUrl: String,
     val size: Long = 0,
     val contentType: String? = null,
+    val digest: String? = null,
 )

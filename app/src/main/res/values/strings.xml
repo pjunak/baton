@@ -123,7 +123,7 @@
     <string name="settings_background_audio_summary">When this phone is an output, Baton keeps playback connected with the screen off, including through Bluetooth headphones or speakers.</string>
     <string name="settings_section_about">About</string>
     <string name="settings_version">Baton %1$s</string>
-    <string name="settings_update_source">Checks GitHub for a newer release</string>
+    <string name="settings_update_source">Checks GitHub for a newer tested commit</string>
     <string name="settings_check_updates">Check for updates</string>
     <string name="settings_checking_updates">Checking…</string>
     <string name="settings_up_to_date">You’re on the latest version.</string>

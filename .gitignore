@@ -67,3 +67,7 @@ Desktop.ini
 
 # Local Android Studio release output (real releases come from CI)
 app/release/
+
+# Release-tool caches
+__pycache__/
+release-output/
