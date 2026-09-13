@@ -16,6 +16,23 @@ import org.junit.Test
 class SerializationTest {
 
     @Test
+    fun `track dates and composer preserve precision and accept older servers`() {
+        val legacy = """{"id":7,"path":"score.flac","title":"Score","artist":"Orchestra","album_artist":"Orchestra","album":"Film","year":2024,"added_at":"2026-09-13"}"""
+        val old = ProtocolJson.decodeFromString<Track>(legacy)
+        assertEquals("", old.releaseDate)
+        assertEquals("", old.originalReleaseDate)
+        assertEquals("", old.composer)
+        val rich = legacy.dropLast(1) + """, "release_date":"2024-02-29","original_release_date":"1998-07","composer":"久石 譲; Composer B"}"""
+        val decoded = ProtocolJson.decodeFromString<Track>(rich)
+        assertEquals("2024-02-29", decoded.releaseDate)
+        assertEquals("1998-07", decoded.originalReleaseDate)
+        assertEquals("久石 譲; Composer B", decoded.composer)
+        assertEquals(2024, decoded.year)
+        assertEquals(decoded, ProtocolJson.decodeFromString<Track>(ProtocolJson.encodeToString(decoded)))
+    }
+
+
+    @Test
     fun `action carries type discriminator and snake_case fields`() {
         val json = ProtocolJson.encodeToString<Action>(Action.AmbientPlayTrack(trackId = 42))
         assertTrue(json, json.contains("\"type\":\"ambient_play_track\""))

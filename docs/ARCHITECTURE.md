@@ -23,6 +23,11 @@ author library files, modes, cues, soundboards, or presets; Settings links to th
 jobs. The optional phone-speaker role remains local and can be switched off without affecting
 remote-control behavior.
 
+Library track responses also carry optional `release_date`, `original_release_date`, and
+`composer` strings. The model preserves calendar precision (year, month, or day), defaults
+missing fields to empty for older servers, and retains the legacy numeric `year`.
+These are Music file-tag metadata; editing remains in the web app.
+
 ## Modules
 
 ```text

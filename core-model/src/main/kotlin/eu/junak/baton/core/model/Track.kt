@@ -29,6 +29,10 @@ data class Track(
     val addedAt: String,
     val displayTitle: String = "",
     val origin: String = "",
+    // Calendar strings retain year/month/day precision; empty on older servers.
+    val releaseDate: String = "",
+    val originalReleaseDate: String = "",
+    val composer: String = "",
 ) {
     /** Best display name: the user-set `displayTitle` if present, else `title`. */
     val effectiveTitle: String get() = displayTitle.ifBlank { title }
