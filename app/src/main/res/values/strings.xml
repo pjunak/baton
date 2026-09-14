@@ -62,8 +62,8 @@
     <string name="library_no_matches">No matches</string>
     <string name="library_up">Up</string>
     <string name="library_play_folder">Play this folder</string>
-    <string name="library_folders">Folders</string>
-    <string name="library_tracks">Tracks</string>
+    <string name="library_play_named_folder">Play folder %1$s</string>
+    <string name="library_open_named_folder">Open folder %1$s</string>
     <string name="library_folder_empty">This folder is empty</string>
     <string name="library_load_error">Couldn’t load this folder.</string>
     <string name="library_play_track">Play %1$s</string>

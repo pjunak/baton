@@ -48,7 +48,7 @@ class LibraryViewModel @Inject constructor(
     fun openContainingFolder(track: Track) = openFolder(parentLibraryPath(track.path))
 
     fun playTrack(track: Track) = send(Action.AmbientPlayTrack(track.id), startsPlayback = true)
-    fun playCurrentFolder() = send(Action.AmbientPlayFolder(ui.value.location.path), startsPlayback = true)
+    fun playFolder(path: String) = send(Action.AmbientPlayFolder(path), startsPlayback = true)
     fun playInterrupt(track: Track) = send(
         Action.FireInterruptTrack(trackId = track.id, fadeInMs = 500, fadeOutMs = 500),
         startsPlayback = true,

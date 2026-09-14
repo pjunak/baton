@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -38,6 +39,7 @@ class LibraryGesturesTest {
     private val connected = mutableStateOf(true)
     private var plays = 0
     private var enqueues = 0
+    private val playedFolders = mutableListOf<String>()
 
     @Before fun setup() {
         browser = LibraryBrowser(api, scope)
@@ -48,7 +50,7 @@ class LibraryGesturesTest {
             onFolder = browser::openFolder,
             onQuery = browser::onQueryChange,
             onRefresh = browser::refresh,
-            onPlayFolder = { plays++ },
+            onPlayFolder = { playedFolders += it },
             onPlay = { plays++ },
             onEnqueue = { enqueues++ },
             onInterrupt = { plays++ },
@@ -69,6 +71,88 @@ class LibraryGesturesTest {
         }
         if (restoration == null) compose.setContent(content) else restoration.setContent(content)
         compose.waitForIdle()
+    }
+
+    @Test fun rootHasNoControlShelfAndNestedFoldersKeepBreadcrumbs() {
+        show()
+        compose.onNodeWithText("Library").assertDoesNotExist()
+        compose.onNodeWithText("Folders").assertDoesNotExist()
+        compose.onNodeWithText("Tracks").assertDoesNotExist()
+        compose.onNodeWithText("Play this folder").assertDoesNotExist()
+        val search = compose.onNode(hasSetTextAction()).fetchSemanticsNode().boundsInRoot
+        val refresh = compose.onNodeWithContentDescription("Refresh").fetchSemanticsNode().boundsInRoot
+        assertTrue(refresh.top >= search.top && refresh.bottom <= search.bottom)
+        compose.onNodeWithText("Ambience").performClick()
+        compose.onNodeWithText("Library").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Up").assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals("", browser.state.value.location.path) }
+    }
+
+    @Test fun folderLongPressPlaysTheTouchedPathAndTapStillNavigates() {
+        show()
+        compose.onNodeWithText("Ambience").performTouchInput { longClick() }
+        compose.runOnIdle {
+            assertEquals(listOf("Ambience"), playedFolders)
+            assertEquals("", browser.state.value.location.path)
+            assertEquals(0, plays)
+        }
+        compose.onNodeWithText("Ambience").performClick()
+        compose.runOnIdle { assertEquals("Ambience", browser.state.value.location.path) }
+        compose.onNodeWithText("Rain").performTouchInput { longClick() }
+        compose.runOnIdle {
+            assertEquals(listOf("Ambience", "Ambience/Rain"), playedFolders)
+            assertEquals("Ambience", browser.state.value.location.path)
+        }
+    }
+
+    @Test fun folderSwipePlaysOnceAndShortSwipesOrRestorationDoNotReplay() {
+        val restoration = StateRestorationTester(compose)
+        show(restoration)
+        compose.onNodeWithText("Ambience").performTouchInput {
+            swipe(Offset(width * 0.6f, centerY), Offset(width * 0.05f, centerY), 600)
+        }
+        compose.runOnIdle {
+            assertEquals(listOf("Ambience"), playedFolders)
+            assertEquals("", browser.state.value.location.path)
+            assertEquals(0, enqueues)
+        }
+        compose.onNodeWithText("Ambience").assertIsDisplayed()
+        restoration.emulateSavedInstanceStateRestore()
+        compose.onNodeWithText("Ambience").performTouchInput {
+            swipe(Offset(width * 0.6f, centerY), Offset(width * 0.5f, centerY), 700)
+        }
+        compose.runOnIdle { assertEquals(listOf("Ambience"), playedFolders) }
+    }
+
+    @Test fun folderPlaybackHasALabelledAccessibilityAction() {
+        show()
+        compose.onNodeWithText("Ambience").assert(SemanticsMatcher("Play folder action is labelled") {
+            it.config[SemanticsActions.OnLongClick].label == "Play folder Ambience"
+        }).performSemanticsAction(SemanticsActions.OnLongClick) { it() }
+        compose.runOnIdle { assertEquals(listOf("Ambience"), playedFolders) }
+    }
+
+    @Test fun offlineFoldersCanOpenButCannotPlay() {
+        connected.value = false
+        show()
+        compose.onNodeWithText("Ambience").assertIsEnabled()
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnLongClick))
+            .performTouchInput { longClick() }
+        compose.onNodeWithText("Ambience").performTouchInput { swipeLeft() }
+        compose.runOnIdle { assertTrue(playedFolders.isEmpty()) }
+        compose.onNodeWithText("Ambience").performClick()
+        compose.runOnIdle { assertEquals("Ambience", browser.state.value.location.path) }
+    }
+
+    @Test fun emptyFoldersCanOpenButCannotPlay() {
+        show()
+        compose.onNodeWithText("Empty").assertIsEnabled()
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnLongClick))
+            .performTouchInput { longClick() }
+        compose.onNodeWithText("Empty").performTouchInput { swipeLeft() }
+        compose.runOnIdle { assertTrue(playedFolders.isEmpty()) }
+        compose.onNodeWithText("Empty").performClick()
+        compose.runOnIdle { assertEquals("Empty", browser.state.value.location.path) }
     }
 
     @Test fun tapPlaysAndLongPressMenuOmitsPlayNow() {
@@ -117,7 +201,7 @@ class LibraryGesturesTest {
         compose.onNodeWithTag("library_list").performTouchInput {
             swipe(Offset(centerX, 20f), Offset(centerX, height * 0.8f), 600)
         }
-        compose.runOnIdle { assertEquals(first + 1, api.treeCalls) }
+        compose.runOnIdle { assertEquals(first + 1, api.treeCalls); assertTrue(playedFolders.isEmpty()) }
         compose.onNodeWithContentDescription("Refresh").performClick()
         compose.runOnIdle { assertEquals(first + 2, api.treeCalls) }
     }
@@ -174,7 +258,11 @@ class LibraryGesturesTest {
         var treeCalls = 0
         private val tracks = (1..50).map { id -> Track(id, "Ambience/rain$id.mp3", "Rain $id", "Field recordings", "", "", addedAt = "2026-09-10") }
         override suspend fun tree(path: String): TreeResponse { treeCalls++; return TreeResponse(path, tracks) }
-        override suspend fun folders() = FoldersResponse(listOf(FolderOut("Ambience", "Ambience", 50, false)))
+        override suspend fun folders() = FoldersResponse(listOf(
+            FolderOut("Ambience", "Ambience", 50, true),
+            FolderOut("Rain", "Ambience/Rain", 50, false),
+            FolderOut("Empty", "Empty", 0, false),
+        ))
         override suspend fun search(query: String, limit: Int, offset: Int, sort: String, order: String) = SearchResponse(tracks, 50, limit, offset, sort, order)
         override suspend fun track(id: Int) = tracks.first { it.id == id }
         override suspend fun tracks(ids: String) = tracks

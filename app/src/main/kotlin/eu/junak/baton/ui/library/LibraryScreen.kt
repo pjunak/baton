@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -63,6 +62,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -79,7 +79,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import eu.junak.baton.R
 import eu.junak.baton.core.model.Track
 import eu.junak.baton.core.sync.ConnectionStatus
-import eu.junak.baton.ui.components.SectionHeader
+import eu.junak.baton.core.network.api.FolderOut
 import eu.junak.baton.ui.components.TrackListItem
 import eu.junak.baton.ui.theme.BatonSpacing
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -117,7 +117,7 @@ fun LibraryScreen(
             onFolder = viewModel::openFolder,
             onQuery = viewModel::onQueryChange,
             onRefresh = viewModel::refresh,
-            onPlayFolder = { viewModel.playCurrentFolder() },
+            onPlayFolder = { viewModel.playFolder(it) },
             onPlay = { viewModel.playTrack(it) },
             onEnqueue = viewModel::enqueue,
             onInterrupt = { viewModel.playInterrupt(it) },
@@ -135,7 +135,7 @@ internal data class LibraryCallbacks(
     val onFolder: (String) -> Unit,
     val onQuery: (String) -> Unit,
     val onRefresh: () -> Unit,
-    val onPlayFolder: () -> Unit,
+    val onPlayFolder: (String) -> Unit,
     val onPlay: (Track) -> Unit,
     val onEnqueue: (Track) -> Unit,
     val onInterrupt: (Track) -> Unit,
@@ -198,21 +198,28 @@ internal fun LibraryScreenContent(ui: LibraryBrowserState, connected: Boolean, a
                 label = { Text(stringResource(R.string.library_search)) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
-                    if (ui.location.searching) IconButton(onClick = {
-                        focus.clearFocus()
-                        actions.onQuery("")
-                    }) {
-                        Icon(Icons.Filled.Close, stringResource(R.string.library_clear_search))
+                    Row {
+                        if (ui.location.searching) IconButton(onClick = {
+                            focus.clearFocus()
+                            actions.onQuery("")
+                        }) {
+                            Icon(Icons.Filled.Close, stringResource(R.string.library_clear_search))
+                        }
+                        IconButton(onClick = actions.onRefresh, enabled = !ui.loading) {
+                            Icon(Icons.Filled.Refresh, stringResource(R.string.action_refresh))
+                        }
                     }
                 },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
                     .padding(horizontal = BatonSpacing.Medium, vertical = BatonSpacing.Small),
             )
-            LibraryNavigationBar(ui, onAncestor = {
-                focus.clearFocus()
-                actions.onAncestor(it)
-            }, onUp = { focus.clearFocus(); actions.onUp() }, onRefresh = actions.onRefresh)
+            if (ui.location.path.isNotEmpty() || ui.location.searching) {
+                LibraryNavigationBar(ui, onAncestor = {
+                    focus.clearFocus()
+                    actions.onAncestor(it)
+                }, onUp = { focus.clearFocus(); actions.onUp() })
+            }
             if (!connected) {
                 Text(
                     stringResource(R.string.connection_reconnecting),
@@ -220,20 +227,6 @@ internal fun LibraryScreenContent(ui: LibraryBrowserState, connected: Boolean, a
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                 )
-            }
-            if (!ui.location.searching && ui.content != null) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = BatonSpacing.Medium),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    FilledTonalButton(
-                        onClick = { actions.onPlayFolder() },
-                        enabled = connected && (ui.content!!.folders.isNotEmpty() || ui.content!!.tracks.isNotEmpty()),
-                    ) {
-                        Icon(Icons.Filled.PlayArrow, null)
-                        Text(stringResource(R.string.library_play_folder), Modifier.padding(start = BatonSpacing.Small))
-                    }
-                }
             }
             if (ui.failed) {
                 Row(
@@ -299,7 +292,7 @@ internal fun LibraryScreenContent(ui: LibraryBrowserState, connected: Boolean, a
 }
 
 @Composable
-private fun LibraryNavigationBar(ui: LibraryBrowserState, onAncestor: (String) -> Unit, onUp: () -> Unit, onRefresh: () -> Unit) {
+private fun LibraryNavigationBar(ui: LibraryBrowserState, onAncestor: (String) -> Unit, onUp: () -> Unit) {
     val scroll = rememberScrollState()
     LaunchedEffect(ui.location.path, scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
     Surface(tonalElevation = 1.dp) {
@@ -319,9 +312,6 @@ private fun LibraryNavigationBar(ui: LibraryBrowserState, onAncestor: (String) -
                         enabled = index < parts.lastIndex || ui.location.searching,
                     ) { Text(part, maxLines = 1) }
                 }
-            }
-            IconButton(onClick = onRefresh, enabled = !ui.loading) {
-                Icon(Icons.Filled.Refresh, stringResource(R.string.action_refresh))
             }
         }
     }
@@ -353,19 +343,13 @@ private fun LibraryList(
         }
     }
     LazyColumn(Modifier.fillMaxSize().testTag("library_list"), state = listState, contentPadding = PaddingValues(bottom = BatonSpacing.Small)) {
-        if (content.folders.isNotEmpty()) {
-            item(key = "folders") { SectionHeader(stringResource(R.string.library_folders), Modifier.padding(BatonSpacing.Medium)) }
-            items(content.folders, key = { "f:${it.path}" }) { folder ->
-                ListItem(
-                    headlineContent = { Text(folder.name) },
-                    supportingContent = { Text(pluralStringResource(R.plurals.library_track_count, folder.trackCount, folder.trackCount)) },
-                    leadingContent = { Icon(Icons.Filled.Folder, null) },
-                    modifier = Modifier.clickable { actions.onFolder(folder.path) },
-                )
-            }
-        }
-        if (content.tracks.isNotEmpty() && !location.searching) {
-            item(key = "tracks") { SectionHeader(stringResource(R.string.library_tracks), Modifier.padding(BatonSpacing.Medium)) }
+        items(content.folders, key = { "f:${it.path}" }) { folder ->
+            FolderRow(
+                folder,
+                playEnabled = connected && (folder.trackCount > 0 || folder.hasChildren),
+                onOpen = { actions.onFolder(folder.path) },
+                onPlay = { actions.onPlayFolder(folder.path) },
+            )
         }
         items(content.tracks, key = { "t:${it.id}" }) { track ->
             TrackRow(
@@ -385,7 +369,34 @@ private fun LibraryList(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FolderRow(
+    folder: FolderOut,
+    playEnabled: Boolean,
+    onOpen: () -> Unit,
+    onPlay: () -> Unit,
+) {
+    val playLabel = stringResource(R.string.library_play_named_folder, folder.name)
+    SwipeActionRow(
+        enabled = playEnabled,
+        label = stringResource(R.string.library_play_folder),
+        icon = Icons.Filled.PlayArrow,
+        onAction = onPlay,
+    ) {
+        ListItem(
+            headlineContent = { Text(folder.name) },
+            supportingContent = { Text(pluralStringResource(R.plurals.library_track_count, folder.trackCount, folder.trackCount)) },
+            leadingContent = { Icon(Icons.Filled.Folder, null) },
+            modifier = Modifier.combinedClickable(
+                onClickLabel = stringResource(R.string.library_open_named_folder, folder.name),
+                onClick = onOpen,
+                onLongClickLabel = playLabel,
+                onLongClick = if (playEnabled) onPlay else null,
+            ),
+        )
+    }
+}
+
 @Composable
 private fun TrackRow(
     track: Track,
@@ -399,39 +410,11 @@ private fun TrackRow(
     val playLabel = stringResource(R.string.library_play_track, track.effectiveTitle)
     val optionsLabel = stringResource(R.string.library_track_options, track.effectiveTitle)
     val enqueueLabel = stringResource(R.string.library_add_queue)
-    val haptics = LocalHapticFeedback.current
-    val enqueue by rememberUpdatedState(onEnqueue)
-    val actionsEnabled by rememberUpdatedState(enabled)
-    // Gesture state is intentionally not saved: restoring a settled swipe must never replay an action.
-    val swipe = remember {
-        SwipeToDismissBoxState(initialValue = SwipeToDismissBoxValue.Settled, positionalThreshold = { width -> width * 0.35f })
-    }
-    LaunchedEffect(swipe) {
-        snapshotFlow { swipe.settledValue }.collect { target ->
-            if (target == SwipeToDismissBoxValue.EndToStart) {
-                if (actionsEnabled) {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    enqueue()
-                }
-                swipe.reset()
-            }
-        }
-    }
-    SwipeToDismissBox(
-        state = swipe,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = enabled,
-        gesturesEnabled = enabled,
-        backgroundContent = {
-            Row(
-                Modifier.fillMaxSize().clearAndSetSemantics { }
-                    .background(MaterialTheme.colorScheme.secondaryContainer).padding(horizontal = BatonSpacing.Large),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End,
-            ) {
-                Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null)
-                Text(enqueueLabel, Modifier.padding(start = BatonSpacing.Small))
-            }
-        },
+    SwipeActionRow(
+        enabled = enabled,
+        label = enqueueLabel,
+        icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+        onAction = onEnqueue,
     ) {
         TrackListItem(
             title = track.effectiveTitle,
@@ -454,4 +437,50 @@ private fun TrackRow(
             },
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeActionRow(
+    enabled: Boolean,
+    label: String,
+    icon: ImageVector,
+    onAction: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    val action by rememberUpdatedState(onAction)
+    val actionsEnabled by rememberUpdatedState(enabled)
+    // Gesture state is intentionally not saved: restoring a settled swipe must never replay an action.
+    val swipe = remember {
+        SwipeToDismissBoxState(initialValue = SwipeToDismissBoxValue.Settled, positionalThreshold = { width -> width * 0.35f })
+    }
+    LaunchedEffect(swipe) {
+        snapshotFlow { swipe.settledValue }.collect { target ->
+            if (target == SwipeToDismissBoxValue.EndToStart) {
+                if (actionsEnabled) {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    action()
+                }
+                swipe.reset()
+            }
+        }
+    }
+    SwipeToDismissBox(
+        state = swipe,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = enabled,
+        gesturesEnabled = enabled,
+        backgroundContent = {
+            Row(
+                Modifier.fillMaxSize().clearAndSetSemantics { }
+                    .background(MaterialTheme.colorScheme.secondaryContainer).padding(horizontal = BatonSpacing.Large),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End,
+            ) {
+                Icon(icon, null)
+                Text(label, Modifier.padding(start = BatonSpacing.Small))
+            }
+        },
+        content = { content() },
+    )
 }

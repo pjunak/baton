@@ -32,11 +32,15 @@ connection honesty, and reliable controls matter more than decorative density.
 - State-driven shuffle/repeat treatments and a smooth dead-reckoned seek display.
 - Queue rows support exact tap-to-jump, drag reordering, accessible move actions, removal, and
   clearing without confusing duplicate track IDs.
-- Library navigation and folder-level actions occupy a distinct control shelf above grouped
-  folder and track content.
-- Library's compact breadcrumb/Up/Refresh bar stays above the scrolling list. System Back returns
-  through folder and search history, previews the destination during a predictive gesture, and
-  leaves the current view intact when cancelled. The keyboard and action sheet dismiss first.
+- Library keeps Refresh inside the search field and omits the root breadcrumb, section headings,
+  and separate folder-play button. Breadcrumb/Up navigation appears inside folders or search.
+  System Back returns through folder and search history, previews the destination during a
+  predictive gesture, and leaves the current view intact when cancelled. The keyboard and action
+  sheet dismiss first.
+- Tap a folder to open it; long press (also exposed as a labelled accessibility action) or swipe
+  left to play that folder. A completed swipe sends once and returns the row to place; short
+  swipes and screen restoration never replay it. Pull down still refreshes. Folder playback
+  disables offline or for empty leaf folders, while folder navigation remains available.
 - Folder/search scroll positions survive return navigation, tab changes, and saved-state
   recreation. Refresh retains visible content and location, with an explicit Retry on errors;
   superseded loads cannot replace the newest view.
