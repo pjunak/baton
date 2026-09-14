@@ -79,6 +79,16 @@ modules; core modules must not depend on Android UI or feature modules.
 - Keep user-visible text in Android resources and provide accessible labels for
   icon-only controls.
 
+## Release and installation
+
+The [release workflow](.github/workflows/ci.yml) verifies main pushes, signs the
+tested APK and publishes a durable GitHub Release. The in-app updater offers it
+to Android's installer; the phone owner approves installation. Preserve signing
+identity and the monotonic build-number contract described in the [README](README.md).
+Baton has no stack or dispatch token in `pjunak/infra`; that repository deploys
+the Music server independently. Server and client protocol changes still need
+compatible release boundaries.
+
 ## Testing and completion
 
 For prose or agent-guidance-only changes, review the diff, check local links,
