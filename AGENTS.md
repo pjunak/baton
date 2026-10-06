@@ -4,6 +4,9 @@ Native Android remote control and optional audio-output client for the sibling
 `music` server. The server owns playback state; Baton renders that state and
 sends typed actions. Keep server URLs and credentials runtime-configured.
 
+This is a personal app with one user. Favour simple, clear code over extra
+hardening or process.
+
 ## Read by task
 
 - [`README.md`](README.md) for setup, supported features and build caveats.
@@ -85,16 +88,13 @@ The [release workflow](.github/workflows/ci.yml) verifies main pushes, signs the
 tested APK and publishes a durable GitHub Release. The in-app updater offers it
 to Android's installer; the phone owner approves installation. Preserve signing
 identity and the monotonic build-number contract described in the [README](README.md).
-Baton has no stack or dispatch token in `pjunak/infra`; that repository deploys
-the Music server independently. Server and client protocol changes still need
-compatible release boundaries.
+Baton is not deployed by `pjunak/infra`. Protocol changes must stay compatible
+with the released Music server.
 
 ## Testing and completion
 
-For prose or agent-guidance-only changes, review the diff, check local links,
-and verify changed commands or contract claims. Runtime builds and operational
-acceptance are required only for the affected behavior below. Reuse successful
-checks on unchanged inputs; preserve complete CI and release gates.
+Documentation-only changes need a diff review, link check and verification of
+changed claims.
 
 - Pure protocol, reducer, and synchronization behavior belongs in JVM tests.
 - Add module-local tests for non-trivial state transitions and serialization.
@@ -108,5 +108,5 @@ checks on unchanged inputs; preserve complete CI and release gates.
   assumptions, or supported behavior change.
 
 Do not commit signing keys, server addresses, credentials, or generated local
-configuration. The global Codex instructions govern task commits. Never push,
-publish a release, or change signing configuration unless explicitly requested.
+configuration. Commit locally after validation. Never push, publish a release,
+or change signing configuration without explicit approval.
