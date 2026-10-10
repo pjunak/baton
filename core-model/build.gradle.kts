@@ -1,5 +1,5 @@
 // Pure-Kotlin domain module: PlayerState, Track, and the Action hierarchy,
-// mirrored from the music backend's protocol.py. No Android dependencies, so
+// mirrored from music's crates/music-protocol. No Android dependencies, so
 // it stays portable (and could be lifted into a KMP module later).
 plugins {
     alias(libs.plugins.kotlin.jvm)

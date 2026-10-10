@@ -103,7 +103,7 @@ on-phone authoring need.
 
 ## ADR-0007 — Current toolchain with AGP built-in Kotlin
 
-**Context.** The app targets a deliberately current stack (AGP 9.3 / Gradle 9.6 / Kotlin 2.4 /
+**Context.** The app targets a deliberately current stack (AGP 9.3 / Gradle 9.7 / Kotlin 2.4 /
 Hilt 2.60).
 
 **Decision.** Use AGP's built-in Kotlin support and modern DSL defaults. Android modules do not

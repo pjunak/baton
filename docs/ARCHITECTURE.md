@@ -16,7 +16,7 @@ The sibling `music` repository is the protocol authority:
 - `crates/music-server` owns WebSocket registration, authorization, and dispatch;
   `crates/music-application/src/playback` owns canonical state transitions.
 - `clients/README.md` defines output reconciliation and per-device volume semantics.
-- `crates/music-server` defines authentication, library, mode, device, and update-facing HTTP APIs.
+- `crates/music-server` defines authentication, library, mode, and device HTTP APIs.
 
 Baton is always an authenticated operator client. It does not expose a guest mode and does not
 author library files, modes, cues, soundboards, or presets; Settings links to the web app for those
@@ -63,8 +63,9 @@ path. Cleartext HTTP and custom certificate trust are intentionally unsupported.
 flows. A connection performs this sequence:
 
 1. Open `<base>/api/ws` with the shared authenticated client.
-2. Accept `state_snapshot`.
-3. Register the stable persisted `client_id`, device name, and protocol version 2.
+2. Register the stable persisted `client_id`, device name, and protocol version 2 as soon as the
+   socket opens, before exposing the connection to action senders.
+3. Accept the `state_snapshot`.
 4. Replace local state on every newer `state_changed` revision.
 5. Reconnect with bounded exponential backoff and register again.
 
@@ -163,7 +164,7 @@ The server address is never compiled into the APK; only the public update reposi
 ## Build, signing, and release
 
 The version catalog is the source of dependency and SDK versions. The current baseline is AGP
-9.3.1, Gradle 9.6.1, Kotlin 2.4.10, JDK 17 bytecode, minSdk 33, and compile/target SDK 37.
+9.3.1, Gradle 9.7.1, Kotlin 2.4.20, JDK 17 bytecode, minSdk 33, and compile/target SDK 37.
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'

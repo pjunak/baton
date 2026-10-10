@@ -62,8 +62,6 @@ class PlaybackController @Inject constructor(
         val next = outputDeviceIds ?: if (on) (current + deviceId).distinct() else current - deviceId
         if (next != current) syncClient.send(Action.SetActiveOutputs(next))
     }
-
-    fun toggle() = setEnabled(!_enabled.value)
 }
 
 internal fun isCanonicalOutput(state: PlayerState?, deviceId: String): Boolean =

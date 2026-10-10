@@ -11,7 +11,7 @@ import org.junit.Test
  * Guards the wire contract with the backend: the `type` discriminator, the
  * camelCase ↔ snake_case mapping, polymorphic decoding, and forward-compatible
  * tolerance of unknown keys. These are the parts most likely to silently drift
- * from `protocol.py`.
+ * from `music-protocol`.
  */
 class SerializationTest {
 

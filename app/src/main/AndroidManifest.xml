@@ -6,9 +6,9 @@
       ACCESS_LOCAL_NETWORK: runtime-gated on Android 17+ because Baton connects
       directly to user-configured self-hosted servers, including LAN addresses.
       POST_NOTIFICATIONS: for the media-playback notification (speaker role,
-      wired with the playback service). FOREGROUND_SERVICE* / WAKE_LOCK /
-      REQUEST_INSTALL_PACKAGES arrive with the service and the in-app updater
-      (see docs/ARCHITECTURE.md §12).
+      wired with the playback service). FOREGROUND_SERVICE* / WAKE_LOCK and
+      REQUEST_INSTALL_PACKAGES are declared by the feature-playback and
+      feature-update manifests.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

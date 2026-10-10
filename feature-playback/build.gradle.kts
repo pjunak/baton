@@ -1,6 +1,6 @@
 // The speaker role: a foreground service with a Media3 MediaSession + a
 // reconciler that maps PlayerState onto ExoPlayer (interrupt overrides
-// ambient; seek only on track change or a big jump). The session's transport
+// ambient; reposition only on a track change or a new position_epoch). The session's transport
 // routes to the SERVER (lock screen / media buttons control the room, not the
 // local mirror). Active only while the local speaker role is enabled.
 plugins {
@@ -45,5 +45,4 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.turbine)
 }

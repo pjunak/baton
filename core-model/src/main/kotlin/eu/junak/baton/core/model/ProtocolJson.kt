@@ -10,7 +10,7 @@ import kotlinx.serialization.json.JsonNamingStrategy
  * converter and the WebSocket codec so the two transports agree.
  *
  * - **Naming:** Kotlin properties are camelCase; the wire is snake_case
- *   ([JsonNamingStrategy.SnakeCase]), matching the backend's pydantic models.
+ *   ([JsonNamingStrategy.SnakeCase]), matching the server's Serde models.
  * - **Discriminator:** polymorphic [Action] / [ServerMessage] are tagged with a
  *   `type` key, matching the backend's discriminated unions.
  * - **encodeDefaults:** on, so the server always receives explicit values

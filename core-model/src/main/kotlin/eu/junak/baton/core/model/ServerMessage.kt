@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * A server → client message over the WebSocket, mirrored from the backend's
- * outbound schemas (`protocol.py`). Decode with the [ServerMessage] base type so
+ * outbound schemas (`music/crates/music-protocol/src/messages.rs`). Decode with the [ServerMessage] base type so
  * the `type` discriminator selects the concrete class.
  *
  * `SfxFired` is transient (not part of [PlayerState]) — broadcast to every

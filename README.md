@@ -31,7 +31,7 @@ origin setting.
 | **Session** — modes, cues, soundboard (tap = fire, hold = loop), EQ presets, interrupts | ✅ Working |
 | **Devices + phone-as-speaker** (single-output-first picker, direct Console volume, optional multi-output, native preset effects, Play prompts when no output is active, Media3 notification) | ✅ Working |
 | **In-app updater** (GitHub Releases → system installer) | ✅ Working |
-| **CI + signed release** (GitHub Actions) | ✅ Working (needs the keystore secrets — see §12) |
+| **CI + signed release** (GitHub Actions) | ✅ Working (needs the keystore secrets — see [Build, signing, and release](docs/ARCHITECTURE.md#build-signing-and-release)) |
 
 ---
 
@@ -83,8 +83,8 @@ human-facing version number has not changed. Download/install still requires you
 action and Android's confirmation. There is no personal access token for checking,
 downloading or publishing these public APKs: CI uses GitHub's temporary job token.
 
-The first commit build keeps a `v0.3.7-commit.<SHA>` tag so existing v0.3.6 installs
-can discover it through their old updater. Subsequent checks compare Android build
+Every build is tagged `v0.3.7-commit.<SHA>`; the fixed prefix lets the updater parse the
+tag, and old v0.3.6 installs could discover it through their semver updater. Update checks compare Android build
 numbers (`100000 + ci.yml run_number`), not version names. Keep that workflow and
 number offset stable; a replacement pipeline must continue above all released
 codes. Tags are created by CI, so a manual version tag is no longer a release step.
@@ -140,7 +140,7 @@ UI backlog: **[docs/DESIGN-NOTES.md](docs/DESIGN-NOTES.md)**
 ## Tech stack
 
 Kotlin 2.4 · Jetpack Compose (Material 3, dynamic color) · Hilt · Coroutines/Flow (MVVM) ·
-OkHttp + Retrofit · kotlinx.serialization · Coil 3 · Media3 · AGP 9.3.1 / Gradle 9.6.1 ·
+OkHttp + Retrofit · kotlinx.serialization · Coil 3 · Media3 · AGP 9.3.1 / Gradle 9.7.1 ·
 version catalog (`gradle/libs.versions.toml`) · minSdk 33 / compile+target SDK 37.
 
 ## Distribution

@@ -1,5 +1,5 @@
 // In-app self-update: check the GitHub Releases API for a newer versionCode,
-// download the APK, hand it to PackageInstaller. The update source repo is a
+// download the APK, hand it to Android's installer via a FileProvider URI. The update source repo is a
 // build-time field (default pjunak/baton) so a fork can repoint it — never a
 // hardcoded server address.
 plugins {
@@ -51,5 +51,4 @@ dependencies {
     ksp(libs.hilt.compiler)
 
     testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
 }

@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * A client → server command, mirrored from the backend's `Action` discriminated
- * union (`protocol.py`). Serialize with the [Action] base type so the `type`
+ * union (`music/crates/music-protocol/src/actions.rs`). Serialize with the [Action] base type so the `type`
  * discriminator is written, e.g. `ProtocolJson.encodeToString<Action>(action)`.
  *
  * Field value-range constraints (volume 0..1, fade ≤ 10 000 ms, …) are enforced
