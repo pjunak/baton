@@ -63,7 +63,6 @@ class ConsoleViewModel @Inject constructor(
         val failureDetail: String? = null,
         val connected: Boolean = false,
         val keepConsoleAwake: Boolean = false,
-        val isPlaying: Boolean = false,
         val nowPlaying: Track? = null,
         val coverUrl: String? = null,
         val positionMs: Int = 0,
@@ -137,7 +136,6 @@ class ConsoleViewModel @Inject constructor(
             UiState(
                 status = status,
                 connected = status == ConnectionStatus.CONNECTED,
-                isPlaying = activePlaying(state),
                 nowPlaying = track,
                 coverUrl = track?.id?.let(mediaUrls::cover),
                 positionMs = posMs,
@@ -220,10 +218,6 @@ class ConsoleViewModel @Inject constructor(
 
     // --- transport --------------------------------------------------------
 
-    fun playPause() {
-        syncClient.send(if (uiState.value.isPlaying) Action.Pause else Action.Resume)
-    }
-
     fun skipNext() = syncClient.send(Action.AmbientSkipNext)
 
     fun skipPrevious() = syncClient.send(Action.AmbientSkipPrev)
@@ -231,7 +225,7 @@ class ConsoleViewModel @Inject constructor(
     fun seekTo(positionMs: Int) {
         val clamped = positionMs.coerceAtLeast(0)
         position.value = clamped // optimistic: move the thumb now, the server will confirm
-        syncClient.send(Action.AmbientSeek(clamped))
+        syncClient.send(seekAction(syncClient.state.value, clamped))
     }
 
     fun cycleShuffle() {
@@ -286,6 +280,10 @@ class ConsoleViewModel @Inject constructor(
         const val TICK_MS = 500L
     }
 }
+
+/** The seek bar follows the interrupt while one is active, so a seek targets that lane. */
+internal fun seekAction(state: PlayerState?, positionMs: Int): Action =
+    if (state?.interrupt != null) Action.InterruptSeek(positionMs) else Action.AmbientSeek(positionMs)
 
 /** Pure index-based reorder so repeated track ids remain distinct queue slots. */
 internal fun moveQueueSlot(ids: List<Int>, fromIndex: Int, toIndex: Int, expectedQueue: List<Int>? = null): List<Int>? {

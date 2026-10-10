@@ -63,6 +63,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dagger.hilt.android.lifecycle.HiltViewModel
 import eu.junak.baton.R
 import eu.junak.baton.core.model.Action
+import eu.junak.baton.core.model.PlayerState
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
 import eu.junak.baton.feature.playback.PlaybackController
@@ -123,8 +124,7 @@ class MainViewModel @Inject constructor(
     val playState: StateFlow<PlayState> =
         combine(syncClient.state, syncClient.status) { state, status ->
             PlayState(
-                // Interrupt overrides ambient on the outputs — reflect it so the icon matches.
-                isPlaying = state?.interrupt != null || state?.isPlaying == true,
+                isPlaying = playPauseAction(state) == Action.Pause,
                 connected = status == ConnectionStatus.CONNECTED,
                 hasActiveOutput = state?.activeOutputDeviceIds?.isNotEmpty() == true,
             )
@@ -140,9 +140,7 @@ class MainViewModel @Inject constructor(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
     fun playPause() {
-        val state = syncClient.state.value
-        val playing = state?.interrupt != null || state?.isPlaying == true
-        syncClient.send(if (playing) Action.Pause else Action.Resume)
+        syncClient.send(playPauseAction(syncClient.state.value))
     }
 
     fun setUiStarted(started: Boolean) {
@@ -269,6 +267,11 @@ fun MainScreen(
 /** Pausing never needs an output; starting playback does. */
 internal fun shouldSelectOutputBeforePlay(isPlaying: Boolean, hasActiveOutput: Boolean): Boolean =
     !isPlaying && !hasActiveOutput
+
+/** Pause/Resume act on ambient only, so the dock follows ambient even while an
+ *  interrupt plays over it (as in the web app). */
+internal fun playPauseAction(state: PlayerState?): Action =
+    if (state?.isPlaying == true) Action.Pause else Action.Resume
 
 /**
  * Bottom nav with a center gap; the global play/pause rests in that gap, straddling the tab row
