@@ -24,11 +24,6 @@ sealed interface Action {
     ) : Action
 
     @Serializable
-    @SerialName("set_volume")
-    /** Legacy group-volume action. New clients use [SetDeviceVolume]. */
-    data class SetVolume(val volume: Double) : Action
-
-    @Serializable
     @SerialName("pause")
     data object Pause : Action
 

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import eu.junak.baton.core.model.Action
+import eu.junak.baton.core.model.deviceVolume
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
 import eu.junak.baton.feature.playback.PlaybackController
@@ -42,8 +43,6 @@ class DevicesViewModel @Inject constructor(
     val uiState: StateFlow<UiState> =
         combine(syncClient.state, syncClient.status, playbackController.enabled) { state, status, localEnabled ->
             val active = state?.activeOutputDeviceIds.orEmpty().toSet()
-            val volumes = state?.deviceVolumes.orEmpty()
-            val defaultVolume = state?.defaultDeviceVolume
             val myId = playbackController.deviceId
             val devices = state?.connectedDevices.orEmpty().map { device ->
                 val isThisDevice = device.deviceId == myId
@@ -52,11 +51,7 @@ class DevicesViewModel @Inject constructor(
                     name = device.name,
                     isThisDevice = isThisDevice,
                     isActiveOutput = device.deviceId in active || (isThisDevice && localEnabled),
-                    volume = if (defaultVolume == null) {
-                        ((state?.volume ?: 1.0) * (volumes[device.deviceId] ?: 1.0)).toFloat()
-                    } else {
-                        (volumes[device.deviceId] ?: defaultVolume).toFloat()
-                    },
+                    volume = (state?.deviceVolume(device.deviceId) ?: 1.0).toFloat(),
                 )
             }
             UiState(devices = devices, connected = status == ConnectionStatus.CONNECTED)

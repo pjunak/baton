@@ -42,6 +42,7 @@ import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.model.PlayerState
 import eu.junak.baton.core.model.ServerMessage
 import eu.junak.baton.core.model.Track
+import eu.junak.baton.core.model.deviceVolume
 import eu.junak.baton.core.network.CoverArtLoader
 import eu.junak.baton.core.network.MediaUrls
 import eu.junak.baton.core.network.api.LibraryApi
@@ -425,15 +426,8 @@ class PlaybackService : Service() {
         }.onFailure { releaseSfx(mp) }
     }
 
-    /** New servers expose absolute device levels; old ones expose master × trim. */
-    private fun outputVolume(state: PlayerState): Double {
-        val defaultVolume = state.defaultDeviceVolume
-        return if (defaultVolume != null) {
-            state.deviceVolumes[playbackController.deviceId] ?: defaultVolume
-        } else {
-            state.volume * (state.deviceVolumes[playbackController.deviceId] ?: 1.0)
-        }
-    }
+    private fun outputVolume(state: PlayerState): Double =
+        state.deviceVolume(playbackController.deviceId)
 
     private fun releaseSfx(mp: MediaPlayer) {
         mp.release()

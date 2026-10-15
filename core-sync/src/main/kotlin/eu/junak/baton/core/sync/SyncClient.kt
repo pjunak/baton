@@ -33,43 +33,6 @@ import kotlin.math.pow
 internal fun shouldAcceptStateChange(current: PlayerState?, incoming: PlayerState): Boolean =
     current == null || incoming.revision >= current.revision
 
-internal fun deviceVolumeActions(
-    state: PlayerState?,
-    deviceId: String,
-    requestedVolume: Double,
-): List<Action> {
-    val requested = requestedVolume.coerceIn(0.0, 1.0)
-    val master = state?.volume ?: 1.0
-    if (state?.defaultDeviceVolume == null && requested > master) {
-        val knownIds = linkedSetOf(deviceId).apply {
-            addAll(state?.deviceVolumes?.keys.orEmpty())
-            addAll(state?.connectedDevices.orEmpty().map { it.deviceId })
-        }
-        val previousLevels = knownIds.associateWith { id ->
-            master * (state?.deviceVolumes?.get(id) ?: 1.0)
-        }
-        return buildList {
-            add(Action.SetVolume(requested))
-            knownIds.forEach { id ->
-                add(
-                    Action.SetDeviceVolume(
-                        id,
-                        if (id == deviceId) 1.0
-                        else ((previousLevels[id] ?: 0.0) / requested).coerceAtMost(1.0),
-                    ),
-                )
-            }
-        }
-    }
-    val wireVolume = if (state?.defaultDeviceVolume == null) {
-        if (master > 0.0) (requested / master).coerceAtMost(1.0)
-        else if (requested == 0.0) 0.0 else 1.0
-    } else {
-        requested
-    }
-    return listOf(Action.SetDeviceVolume(deviceId, wireVolume))
-}
-
 /**
  * Owns the WebSocket to the server and exposes the canonical [PlayerState] as a
  * [StateFlow] the rest of the app reconciles to. Mirrors the protocol in the
@@ -197,7 +160,7 @@ class SyncClient @Inject constructor(
     }
 
     fun setDeviceVolume(deviceId: String, volume: Double) {
-        deviceVolumeActions(_state.value, deviceId, volume).forEach(::send)
+        send(Action.SetDeviceVolume(deviceId, volume.coerceIn(0.0, 1.0)))
     }
 
     @Synchronized

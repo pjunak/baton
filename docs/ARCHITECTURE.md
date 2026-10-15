@@ -139,7 +139,7 @@ starting audio, so a delayed prepare callback cannot revive a removed output.
 The reconciler follows the server contract: an interrupt overrides ambient playback; a track
 change loads and seeks; a changed `position_epoch` applies a deliberate seek; same-epoch state
 updates do not chase the materialized server clock. Protocol-v2 absolute device volume applies to
-music and SFX, with the legacy master-times-trim projection retained for old servers. Baton does
+music and SFX. Baton does
 not currently send output position reports.
 
 Effect-aware playback resolves `active_preset_ids` through the active mode's guest-readable preset

@@ -89,7 +89,7 @@ class SerializationTest {
     fun `state_changed decodes into PlayerState`() {
         val payload = """
             {"type":"state_changed","state":{
-              "revision":5,"is_playing":true,"volume":1.0,
+              "revision":5,"is_playing":true,
               "default_device_volume":0.7,"device_volumes":{"tv-1":0.4},
               "active_preset_ids":["cave"],"preset_revision":9,
               "connected_devices":[{"device_id":"tv-1","client_id":"tv-1","name":"TV","is_output":true}],
@@ -101,8 +101,7 @@ class SerializationTest {
         assertTrue(msg is ServerMessage.StateChanged)
         val state = (msg as ServerMessage.StateChanged).state
         assertEquals(true, state.isPlaying)
-        assertEquals(1.0, state.volume, 0.0)
-        assertEquals(0.7, state.defaultDeviceVolume ?: -1.0, 0.0)
+        assertEquals(0.7, state.defaultDeviceVolume, 0.0)
         assertEquals(0.4, state.deviceVolumes["tv-1"] ?: -1.0, 0.0)
         assertEquals(listOf("cave"), state.activePresetIds)
         assertEquals(9, state.presetRevision)
@@ -115,13 +114,14 @@ class SerializationTest {
     }
 
     @Test
-    fun `missing absolute-volume marker identifies legacy server state`() {
+    fun `device volume falls back to the server default`() {
         val payload =
-            """{"type":"state_snapshot","state":{"volume":0.4,"device_volumes":{"tv-1":0.5}}}"""
+            """{"type":"state_snapshot","state":{"default_device_volume":0.6,"device_volumes":{"tv-1":0.5}}}"""
         val msg = ProtocolJson.decodeFromString<ServerMessage>(payload)
         assertTrue(msg is ServerMessage.StateSnapshot)
-        assertNull((msg as ServerMessage.StateSnapshot).state.defaultDeviceVolume)
-        assertEquals(0, msg.state.presetRevision)
+        val state = (msg as ServerMessage.StateSnapshot).state
+        assertEquals(0.5, state.deviceVolume("tv-1"), 0.0)
+        assertEquals(0.6, state.deviceVolume("phone"), 0.0)
     }
 
     @Test

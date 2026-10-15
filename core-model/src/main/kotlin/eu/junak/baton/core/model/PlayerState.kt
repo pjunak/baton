@@ -108,13 +108,10 @@ data class PlayerState(
      *  comparing positions, which are re-stamped on every broadcast. */
     val positionEpoch: Int = 0,
     val isPlaying: Boolean = false,
-    /** Deprecated compatibility field. Current servers keep this at unity. */
-    val volume: Double = 1.0,
     val activeModeId: String? = null,
     val activeOutputDeviceIds: List<String> = emptyList(),
-    /** Initial server-owned level before this device has a materialized entry.
-     *  Null identifies an older server where deviceVolumes are trims. */
-    val defaultDeviceVolume: Double? = null,
+    /** Server-owned level for a device without its own [deviceVolumes] entry. */
+    val defaultDeviceVolume: Double = 1.0,
     /** Canonical absolute software volume keyed by stable device id. */
     val deviceVolumes: Map<String, Double> = emptyMap(),
     val activeSoundboardId: String? = null,
@@ -129,3 +126,7 @@ data class PlayerState(
     val lastPositionReport: PositionReport? = null,
     val connectedDevices: List<DeviceInfo> = emptyList(),
 )
+
+/** The absolute software volume the server assigns to [deviceId]. */
+fun PlayerState.deviceVolume(deviceId: String): Double =
+    deviceVolumes[deviceId] ?: defaultDeviceVolume
