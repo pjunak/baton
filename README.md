@@ -28,8 +28,8 @@ origin setting.
 | **Console** — connection status, now-playing, play/pause, skip, **seek**, **shuffle/repeat**, **live queue** (jump/reorder/remove/clear) | ✅ Working |
 | **Library** — compact search/refresh, folder Back/breadcrumbs, saved browsing position, pull-to-refresh, debounced search, hold/swipe folders to play, tap tracks to play, swipe tracks to enqueue | ✅ Working |
 | **Settings** — General / Playback / Updates tabs, console-awake opt-in, account + **sign-out**, server + "Open web app" | ✅ Working |
-| **Session** — modes, cues, soundboard (tap = fire, hold = loop), EQ presets, interrupts | ✅ Working |
-| **Devices + phone-as-speaker** (single-output-first picker, direct Console volume, optional multi-output, native preset effects, Play prompts when no output is active, Media3 notification) | ✅ Working |
+| **Session** — modes (and each mode's multi-speaker setting), cues, soundboard (tap = fire, hold = loop), EQ presets, interrupts | ✅ Working |
+| **Devices + phone-as-speaker** (picker follows the active mode's one-or-several speaker setting, direct Console volume, native preset effects, Play prompts when no output is active, Media3 notification) | ✅ Working |
 | **In-app updater** (GitHub Releases → system installer) | ✅ Working |
 | **CI + signed release** (GitHub Actions) | ✅ Working (needs the keystore secrets — see [Build, signing, and release](docs/ARCHITECTURE.md#build-signing-and-release)) |
 

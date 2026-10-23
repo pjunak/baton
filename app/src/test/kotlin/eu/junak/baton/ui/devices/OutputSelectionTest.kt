@@ -43,9 +43,4 @@ class OutputSelectionTest {
             ),
         )
     }
-
-    @Test
-    fun `disabling multi-output keeps the first active output`() {
-        assertEquals(listOf("phone"), collapseToSingleOutput(listOf("phone", "tv")))
-    }
 }

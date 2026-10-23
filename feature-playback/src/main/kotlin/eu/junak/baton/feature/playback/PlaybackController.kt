@@ -116,7 +116,8 @@ internal data class RoleDecision(
  * the disconnected null — is transport fallout, not an operator choice: the
  * role rejoins once and stays on while the confirmation is in flight. Absence
  * observed mid-connection (outside that confirmation window) IS a deliberate
- * removal and relinquishes the role. Symmetrically, a local stop opens a leave
+ * removal and relinquishes the role, as does a first snapshot in which a
+ * one-output mode already plays through another speaker. Symmetrically, a local stop opens a leave
  * window so a racing broadcast that still lists this device cannot undo it.
  * Transport loss itself never changes the role; that is what keeps the
  * Android 17 while-in-use foreground service alive across a screen-off Wi-Fi
@@ -165,6 +166,10 @@ internal class SpeakerRoleReducer {
                 }
             }
             !enabled -> RoleDecision(enabled = false)
+            // A one-output mode handed the room to another speaker while we
+            // were away; rejoining would take it back, so yield instead.
+            firstSnapshot && !state.multipleOutputs && state.activeOutputDeviceIds.isNotEmpty() ->
+                RoleDecision(enabled = false)
             firstSnapshot -> {
                 rejoinSentAt = now
                 RoleDecision(enabled = true, rejoin = true)

@@ -110,6 +110,9 @@ data class PlayerState(
     val isPlaying: Boolean = false,
     val activeModeId: String? = null,
     val activeOutputDeviceIds: List<String> = emptyList(),
+    /** Whether the active mode lets several outputs play together. When false the
+     *  server keeps at most one active output, so pickers offer a single choice. */
+    val multipleOutputs: Boolean = false,
     /** Server-owned level for a device without its own [deviceVolumes] entry. */
     val defaultDeviceVolume: Double = 1.0,
     /** Canonical absolute software volume keyed by stable device id. */

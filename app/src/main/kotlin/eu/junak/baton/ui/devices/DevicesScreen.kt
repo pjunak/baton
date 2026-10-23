@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
@@ -25,15 +26,14 @@ import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +44,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.paneTitle
@@ -63,20 +64,13 @@ import eu.junak.baton.ui.theme.BatonSpacing
 /**
  * Output-device picker, shown as a sheet pulled down from the top of the Console
  * (its trigger is the speaker icon up there). Lists every connected output — this
- * phone included — toggles which are active, and trims per-device volume.
+ * phone included — and trims per-device volume. The active mode decides the
+ * selection style: one output (radio choices plus "No output") or several (switches).
  */
 @Composable
 fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
     val title = stringResource(R.string.devices_title)
-    val activeOutputCount = ui.devices.count { it.isActiveOutput }
-    var multipleOutputs by rememberSaveable { mutableStateOf(activeOutputCount > 1) }
-
-    // Output-by-default connections and other controllers can create a
-    // multi-output session outside this sheet. Reflect that canonical state.
-    LaunchedEffect(activeOutputCount) {
-        if (activeOutputCount > 1) multipleOutputs = true
-    }
 
     Column(
         Modifier
@@ -89,29 +83,9 @@ fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(horizontal = BatonSpacing.Large, vertical = BatonSpacing.Small),
         )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = BatonSpacing.Large),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.devices_multiple_outputs),
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.weight(1f),
-            )
-            Switch(
-                checked = multipleOutputs,
-                onCheckedChange = { enabled ->
-                    multipleOutputs = enabled
-                    viewModel.setMultipleOutputs(enabled)
-                },
-                enabled = ui.connected,
-            )
-        }
         Text(
             text = stringResource(
-                if (multipleOutputs) R.string.devices_multiple_outputs_help
+                if (ui.multipleOutputs) R.string.devices_multiple_outputs_help
                 else R.string.devices_single_output_help,
             ),
             style = MaterialTheme.typography.bodySmall,
@@ -135,19 +109,47 @@ fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
             ui.devices.forEach { device ->
                 DeviceCard(
                     device = device,
+                    single = !ui.multipleOutputs,
                     enabled = ui.connected,
-                    onToggle = { viewModel.toggleOutput(device.deviceId, it, multipleOutputs) },
+                    onToggle = { viewModel.toggleOutput(device.deviceId, it) },
                     onVolume = { viewModel.setDeviceVolume(device.deviceId, it) },
                 )
                 HorizontalDivider()
+            }
+            if (!ui.multipleOutputs) {
+                NoOutputRow(
+                    selected = ui.devices.none { it.isActiveOutput },
+                    enabled = ui.connected,
+                    onSelect = viewModel::clearOutputs,
+                )
             }
         }
     }
 }
 
 @Composable
+private fun NoOutputRow(selected: Boolean, enabled: Boolean, onSelect: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
+            .padding(horizontal = BatonSpacing.Large, vertical = BatonSpacing.Small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.devices_no_output),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        RadioButton(selected = selected, onClick = null, enabled = enabled)
+    }
+}
+
+@Composable
 private fun DeviceCard(
     device: DeviceRow,
+    single: Boolean,
     enabled: Boolean,
     onToggle: (Boolean) -> Unit,
     onVolume: (Float) -> Unit,
@@ -173,12 +175,21 @@ private fun DeviceCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Switch(
-                checked = device.isActiveOutput,
-                onCheckedChange = onToggle,
-                enabled = enabled,
-                modifier = Modifier.semantics { contentDescription = outputDescription },
-            )
+            if (single) {
+                RadioButton(
+                    selected = device.isActiveOutput,
+                    onClick = { onToggle(true) },
+                    enabled = enabled,
+                    modifier = Modifier.semantics { contentDescription = outputDescription },
+                )
+            } else {
+                Switch(
+                    checked = device.isActiveOutput,
+                    onCheckedChange = onToggle,
+                    enabled = enabled,
+                    modifier = Modifier.semantics { contentDescription = outputDescription },
+                )
+            }
         }
         if (device.isActiveOutput) {
             DeviceVolumeControl(deviceLabel, device.volume, enabled, onVolume)

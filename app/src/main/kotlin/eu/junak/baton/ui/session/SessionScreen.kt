@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
@@ -25,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,6 +85,15 @@ fun SessionScreen(viewModel: SessionViewModel = hiltViewModel()) {
                         )
                     }
                 }
+            }
+        }
+        if (ui.activeModeId != null) {
+            item {
+                MultipleOutputsOption(
+                    checked = ui.multipleOutputs,
+                    enabled = ui.connected && !ui.savingOutputs,
+                    onChange = viewModel::setMultipleOutputs,
+                )
             }
         }
 
@@ -243,6 +255,24 @@ private fun Hint(text: String) {
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+/** The active mode's speaker policy: several outputs together, or one at a time. */
+@Composable
+private fun MultipleOutputsOption(checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.session_multiple_outputs), style = MaterialTheme.typography.titleSmall)
+            Hint(stringResource(R.string.session_multiple_outputs_help))
+        }
+        Spacer(Modifier.width(BatonSpacing.Small))
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+    }
 }
 
 /** A cue tile: the mode's saved one-click setup. Reads as the headline action

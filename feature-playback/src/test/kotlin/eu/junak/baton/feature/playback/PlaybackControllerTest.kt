@@ -66,6 +66,28 @@ class PlaybackControllerTest {
     }
 
     @Test
+    fun `a one-output mode playing elsewhere is not taken back on reconnect`() {
+        val role = SpeakerRoleReducer()
+        role.onState(active, phone, enabled = false, now = 0, connectionEpoch = 1)
+        role.onDisconnected(enabled = true)
+        val elsewhere = PlayerState(activeOutputDeviceIds = listOf("room"))
+        val yielded = role.onState(elsewhere, phone, enabled = true, now = 1_000, connectionEpoch = 2)
+        assertFalse(yielded.enabled)
+        assertFalse(yielded.rejoin)
+    }
+
+    @Test
+    fun `a multi-output mode rejoins beside the other speakers`() {
+        val role = SpeakerRoleReducer()
+        role.onState(active, phone, enabled = false, now = 0, connectionEpoch = 1)
+        role.onDisconnected(enabled = true)
+        val together = PlayerState(activeOutputDeviceIds = listOf("room"), multipleOutputs = true)
+        val rejoin = role.onState(together, phone, enabled = true, now = 1_000, connectionEpoch = 2)
+        assertTrue(rejoin.enabled)
+        assertTrue(rejoin.rejoin)
+    }
+
+    @Test
     fun `a conflated reconnect still counts as a first snapshot`() {
         val role = SpeakerRoleReducer()
         role.onState(active, phone, enabled = true, now = 0, connectionEpoch = 1)

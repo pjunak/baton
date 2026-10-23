@@ -33,6 +33,15 @@ class SerializationTest {
 
 
     @Test
+    fun `output policy follows the active mode and defaults to one output`() {
+        assertEquals(false, ProtocolJson.decodeFromString<PlayerState>("{}").multipleOutputs)
+        assertEquals(
+            true,
+            ProtocolJson.decodeFromString<PlayerState>("""{"multiple_outputs":true}""").multipleOutputs,
+        )
+    }
+
+    @Test
     fun `action carries type discriminator and snake_case fields`() {
         val json = ProtocolJson.encodeToString<Action>(Action.AmbientPlayTrack(trackId = 42))
         assertTrue(json, json.contains("\"type\":\"ambient_play_track\""))

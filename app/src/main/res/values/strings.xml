@@ -36,9 +36,9 @@
     <string name="console_next">Next</string>
     <string name="devices_title">Output devices</string>
     <string name="devices_empty">No devices connected</string>
-    <string name="devices_multiple_outputs">Play on multiple outputs</string>
-    <string name="devices_single_output_help">Choose one output. Selecting another replaces it.</string>
-    <string name="devices_multiple_outputs_help">Choose any outputs that should play together.</string>
+    <string name="devices_single_output_help">This mode plays through one output. Selecting another replaces it.</string>
+    <string name="devices_multiple_outputs_help">This mode lets several outputs play together.</string>
+    <string name="devices_no_output">No output</string>
     <string name="devices_output_toggle">Use %1$s as an output</string>
     <string name="devices_volume">Volume for %1$s</string>
     <string name="devices_active_output">Active output</string>
@@ -86,6 +86,8 @@
     </plurals>
     <string name="session_modes">Modes</string>
     <string name="session_no_modes">No modes configured on the server.</string>
+    <string name="session_multiple_outputs">Play on several speakers at once</string>
+    <string name="session_multiple_outputs_help">Saved with this mode. When off, choosing a speaker replaces the one playing.</string>
     <string name="session_cues">Cues</string>
     <string name="session_soundboard">Soundboard</string>
     <string name="session_soundboard_named">Soundboard · %1$s</string>

@@ -7,6 +7,7 @@ import eu.junak.baton.core.model.Action
 import eu.junak.baton.core.network.api.InterruptTemplate
 import eu.junak.baton.core.network.api.ModeDetail
 import eu.junak.baton.core.network.api.ModeSummary
+import eu.junak.baton.core.network.api.ModeUpdate
 import eu.junak.baton.core.network.api.ModesApi
 import eu.junak.baton.core.network.api.PlaylistMeta
 import eu.junak.baton.core.network.api.PlaylistsApi
@@ -35,7 +36,9 @@ import javax.inject.Inject
  * interrupt lane + looping SFX.
  *
  * Reads are REST ([ModesApi]/[PlaylistsApi]: mode list, the active mode's
- * detail + presets + playlists); every mutation is a WebSocket [Action]. The
+ * detail + presets + playlists); every playback mutation is a WebSocket
+ * [Action]. The active mode's multi-speaker setting is a REST mode update whose
+ * effect returns through PlayerState like everything else. The
  * server owns all state — active mode/presets, the interrupt and the loops are
  * read straight off the PlayerState, so this stays in lockstep with the web
  * client and other remotes.
@@ -69,6 +72,9 @@ class SessionViewModel @Inject constructor(
         val connected: Boolean = false,
         val modes: List<ModeItem> = emptyList(),
         val activeModeId: String? = null,
+        /** The active mode lets several speakers play together. */
+        val multipleOutputs: Boolean = false,
+        val savingOutputs: Boolean = false,
         val cues: List<CueItem> = emptyList(),
         val soundboardId: String? = null,
         val soundboardName: String? = null,
@@ -88,9 +94,16 @@ class SessionViewModel @Inject constructor(
 
     private val modes = MutableStateFlow<List<ModeSummary>>(emptyList())
     private val modeData = MutableStateFlow(ModeData())
+    private val savingOutputs = MutableStateFlow(false)
 
     val uiState: StateFlow<UiState> =
-        combine(syncClient.status, syncClient.state, modes, modeData) { status, state, modeList, data ->
+        combine(
+            syncClient.status,
+            syncClient.state,
+            modes,
+            modeData,
+            savingOutputs,
+        ) { status, state, modeList, data, saving ->
             val activeModeId = state?.activeModeId
             val detail = data.detail
             val board = detail?.let { d ->
@@ -103,6 +116,8 @@ class SessionViewModel @Inject constructor(
                 connected = status == ConnectionStatus.CONNECTED,
                 modes = modeList.map { ModeItem(it.id, it.name, it.id == activeModeId) },
                 activeModeId = activeModeId,
+                multipleOutputs = state?.multipleOutputs == true,
+                savingOutputs = saving,
                 cues = detail?.cues?.values
                     ?.map { CueItem(it.id, it.name, it.description) }
                     ?.sortedBy { it.name }
@@ -191,6 +206,17 @@ class SessionViewModel @Inject constructor(
     fun toggleMode(id: String) {
         val current = syncClient.state.value?.activeModeId
         syncClient.send(Action.SetActiveMode(if (current == id) null else id))
+    }
+
+    /** Save the active mode's speaker policy; the switch follows PlayerState. */
+    fun setMultipleOutputs(enabled: Boolean) {
+        val modeId = syncClient.state.value?.activeModeId ?: return
+        if (savingOutputs.value) return
+        savingOutputs.value = true
+        viewModelScope.launch {
+            runCatching { modesApi.update(modeId, ModeUpdate(multipleOutputs = enabled)) }
+            savingOutputs.value = false
+        }
     }
 
     fun fireCue(id: String) = syncClient.send(Action.FireCue(id))

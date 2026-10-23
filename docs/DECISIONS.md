@@ -193,7 +193,9 @@ one, so the ADR and agent rule against replaying stale mutations still hold. Con
 windows absorb racing broadcasts in both directions: an in-flight rejoin is not relinquished by
 an unrelated broadcast, and a local stop is not undone by a broadcast that predates its
 removal. Membership removed mid-connection, an unconfirmed rejoin, or grace expiry releases the
-role normally. A reconnect-time catch-up seek (position epoch reset) realigns audio with the
+role normally. So does a first snapshot in which the active mode plays through one output
+(`multiple_outputs` false) and another speaker is already on: the server would let the rejoin
+replace it, so the phone yields rather than taking the room back. A reconnect-time catch-up seek (position epoch reset) realigns audio with the
 server clock that kept ticking through the hold.
 
 **Consequences.** A screen-off Wi-Fi blip now resumes audio at the canonical position instead of

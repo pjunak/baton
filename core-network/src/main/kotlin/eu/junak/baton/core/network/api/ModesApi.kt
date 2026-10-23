@@ -1,13 +1,16 @@
 package eu.junak.baton.core.network.api
 
 import kotlinx.serialization.Serializable
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.Path
 
 /**
- * Read-only access to the server's ambient *modes* (the scenes the operator
- * switches between) and everything authored inside them — soundboards, cues,
- * interrupt templates, EQ presets. Listing is REST; *activating* a mode,
+ * Access to the server's ambient *modes* (the scenes the operator switches
+ * between) and everything authored inside them — soundboards, cues, interrupt
+ * templates, EQ presets. Authoring stays in the web app; the only write here is
+ * a mode's playback settings ([update]). Listing is REST; *activating* a mode,
  * *firing* SFX/cues/interrupts and *toggling* presets go over the WebSocket as
  * [eu.junak.baton.core.model.Action]s. Responses deserialize via the
  * snake_case-aware ProtocolJson (unknown keys are ignored, so these DTOs carry
@@ -26,6 +29,10 @@ interface ModesApi {
     /** The mode's EQ presets (everything authored is per-mode). */
     @GET("api/modes/{id}/presets")
     suspend fun presets(@Path("id") id: String): List<PresetManifest>
+
+    /** Change a mode's settings; fields left out keep their current value. */
+    @PATCH("api/modes/{id}")
+    suspend fun update(@Path("id") id: String, @Body update: ModeUpdate): ModeSummary
 }
 
 @Serializable
@@ -33,7 +40,12 @@ data class ModeSummary(
     val id: String,
     val name: String,
     val defaultSoundboard: String? = null,
+    val multipleOutputs: Boolean = false,
 )
+
+/** Whether several outputs may play together while the mode is active. */
+@Serializable
+data class ModeUpdate(val multipleOutputs: Boolean)
 
 @Serializable
 data class ModeDetail(

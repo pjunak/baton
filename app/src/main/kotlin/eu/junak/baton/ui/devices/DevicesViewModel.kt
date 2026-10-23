@@ -15,9 +15,10 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 /**
- * Manage every connected output: choose one output by default, optionally add
- * more outputs ([Action.SetActiveOutputs]), and trim per-device volume
- * ([Action.SetDeviceVolume]).
+ * Manage every connected output: choose the active output, or several when the
+ * active mode allows it ([eu.junak.baton.core.model.PlayerState.multipleOutputs],
+ * enforced by the server), via [Action.SetActiveOutputs], and trim per-device
+ * volume ([Action.SetDeviceVolume]).
  * This phone appears here too; toggling it routes through [PlaybackController] (the
  * same path as the Console's "Play on this phone" switch) so the local engine reacts.
  */
@@ -38,6 +39,8 @@ class DevicesViewModel @Inject constructor(
     data class UiState(
         val devices: List<DeviceRow> = emptyList(),
         val connected: Boolean = false,
+        /** The active mode lets several outputs play together. */
+        val multipleOutputs: Boolean = false,
     )
 
     val uiState: StateFlow<UiState> =
@@ -54,19 +57,21 @@ class DevicesViewModel @Inject constructor(
                     volume = (state?.deviceVolume(device.deviceId) ?: 1.0).toFloat(),
                 )
             }
-            UiState(devices = devices, connected = status == ConnectionStatus.CONNECTED)
+            UiState(
+                devices = devices,
+                connected = status == ConnectionStatus.CONNECTED,
+                multipleOutputs = state?.multipleOutputs == true,
+            )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), UiState())
 
-    fun toggleOutput(deviceId: String, on: Boolean, allowMultiple: Boolean) {
+    fun toggleOutput(deviceId: String, on: Boolean) {
         val current = effectiveActiveOutputs()
+        val allowMultiple = syncClient.state.value?.multipleOutputs == true
         applyActiveOutputs(nextActiveOutputs(current, deviceId, on, allowMultiple))
     }
 
-    fun setMultipleOutputs(enabled: Boolean) {
-        if (enabled) return
-        val current = effectiveActiveOutputs()
-        if (current.size > 1) applyActiveOutputs(collapseToSingleOutput(current))
-    }
+    /** "No output" in a one-output mode: silence every speaker. */
+    fun clearOutputs() = applyActiveOutputs(emptyList())
 
     fun setDeviceVolume(deviceId: String, volume: Float) {
         syncClient.setDeviceVolume(deviceId, volume.toDouble())
@@ -106,5 +111,3 @@ internal fun nextActiveOutputs(
     } else {
         current - deviceId
     }
-
-internal fun collapseToSingleOutput(current: List<String>): List<String> = current.take(1)

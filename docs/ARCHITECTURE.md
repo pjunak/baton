@@ -90,12 +90,15 @@ the phone speaker, wired audio, Bluetooth headphones, or Bluetooth speakers.
   reject late responses. `SavedStateHandle` persists bounded navigation/scroll state, while a small
   in-memory content cache speeds return visits. This is UI state, not a playback reducer or an
   offline library. Authoring stays in the web app.
-- **Session:** active mode, cues, soundboards and loops, EQ presets, and interrupts.
+- **Session:** active mode and its multi-speaker setting, cues, soundboards and loops, EQ presets,
+  and interrupts. The setting is saved on the server's mode (`PATCH api/modes/{id}`); its effect
+  returns through `PlayerState.multiple_outputs`.
 - **Settings:** General / Playback / Updates subtabs for account, server/web link, Keep Console
   awake, app version, and updater state. Tabs support taps and horizontal paging.
 - **Devices:** a Console modal listing connected devices, live output activation, and canonical
-  per-device volume. Selection is single-output by default; users can opt into multiple outputs in
-  the modal. When exactly one output is active, its volume is also available beside the Console
+  per-device volume. The active mode decides the selection style from `multiple_outputs`, which
+  the server also enforces: one output (radio choices plus "No output") or several (switches).
+  When exactly one output is active, its volume is also available beside the Console
   speaker button. The phone row controls the local speaker service as well as server membership.
 
 The main shell saves each tab's Compose state and shows a metadata-only mini-player outside
