@@ -167,3 +167,39 @@ engine's routing.
 dry if manifests cannot be resolved. DSP behavior is deterministic and covered by JVM response,
 timing, ordering, cache, and protocol tests. This does not implement crossfade: that requires two
 simultaneous ambient players and remains independent of the preset effect rack.
+
+---
+
+## ADR-0011 — Speaker role survives transient disconnects and rejoins once
+
+**Context.** Any WebSocket drop nulled `liveState`, which disabled the role, stopped the
+foreground service, and disarmed reconnect once the ADR-0009 background grace elapsed. OneUI 9
+(Android 17) parks Wi-Fi aggressively at screen-off, making such drops routine, and Android 17's
+background audio hardening mutes a `mediaPlayback` service restarted from the background (no
+while-in-use capability for apps targeting API 37). Net effect: pocketed playback went silent
+while the server clock kept ticking, and because the server prunes a disconnected socket from
+`active_output_device_ids`, even a successful reconnect returned without the role.
+
+**Decision.** Treat the speaker role as local state that transport loss cannot change. While
+disconnected, the service pauses in place but stays foreground for a bounded grace
+(5 minutes, within Android's ~10-minute transient-failure allowance), holding its own partial
+wake lock because ExoPlayer's `WAKE_MODE_NETWORK` locks lapse once paused (plus a best-effort
+Wi-Fi lock; Android 14+ downgrades high-perf Wi-Fi locks, so the wake lock and the foreground
+service do the real work). On the first snapshot of a new connection — detected by a
+`SyncClient` connection epoch, since the transient disconnected null can be conflated away
+under a busy collector — an enabled role re-requests membership once with
+`set_active_outputs` computed from that fresh snapshot: a new mutation, not a replayed stale
+one, so the ADR and agent rule against replaying stale mutations still hold. Confirmation
+windows absorb racing broadcasts in both directions: an in-flight rejoin is not relinquished by
+an unrelated broadcast, and a local stop is not undone by a broadcast that predates its
+removal. Membership removed mid-connection, an unconfirmed rejoin, or grace expiry releases the
+role normally. A reconnect-time catch-up seek (position epoch reset) realigns audio with the
+server clock that kept ticking through the hold.
+
+**Consequences.** A screen-off Wi-Fi blip now resumes audio at the canonical position instead of
+going permanently silent; the original while-in-use foreground service instance is never
+discarded, satisfying Android 17's hardening. The notification shows "Reconnecting…" during the
+hold. Known trade-off: an operator who deliberately deactivates this phone's output while its
+socket happens to be down will see it rejoin if it reconnects within the grace window —
+accepted for a single-operator setup. OneUI may still freeze or kill the process despite the
+foreground service; that remains unfixable client-side, bounded by the grace timeout.

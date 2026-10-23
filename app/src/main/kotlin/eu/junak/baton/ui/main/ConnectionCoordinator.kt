@@ -23,7 +23,9 @@ internal fun shouldKeepSyncConnected(uiStarted: Boolean, speakerEnabled: Boolean
  * Keeps realtime sync alive only while somebody needs it: the visible controller UI, or the
  * foreground speaker service. The latter deliberately includes every Android audio route — phone
  * speaker, wired output, Bluetooth headphones, and Bluetooth speakers all use the same Media3
- * player and therefore the same [PlaybackController.enabled] gate.
+ * player and therefore the same [PlaybackController.enabled] gate. That gate survives transport
+ * loss, so a dropped socket while the speaker is active keeps reconnect armed here instead of
+ * disarming it after the background grace.
  */
 @Singleton
 class ConnectionCoordinator @Inject constructor(

@@ -73,6 +73,14 @@ class SyncClient @Inject constructor(
     /** Audio permission comes only from a snapshot on the current connection. */
     val liveState: StateFlow<PlayerState?> = _liveState.asStateFlow()
 
+    private val _connectionEpoch = MutableStateFlow(0)
+
+    /** Bumped for every connection attempt. Consumers pair it with [liveState]
+     *  to tell a new connection's first snapshot from a mid-connection update:
+     *  the transient disconnected `null` can be conflated away under a busy
+     *  collector, but the epoch carried by the latest value cannot. */
+    val connectionEpoch: StateFlow<Int> = _connectionEpoch.asStateFlow()
+
     private val _status = MutableStateFlow(ConnectionStatus.DISCONNECTED)
     val status: StateFlow<ConnectionStatus> = _status.asStateFlow()
 
@@ -166,6 +174,7 @@ class SyncClient @Inject constructor(
     @Synchronized
     private fun openSocket() {
         _liveState.value = null
+        _connectionEpoch.value += 1
         val base = serverConfig.baseUrlOrNull()
         if (base == null) {
             _status.value = ConnectionStatus.DISCONNECTED

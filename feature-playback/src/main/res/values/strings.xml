@@ -6,6 +6,7 @@
     <string name="playback_phone_audio">This phone is playing the session audio</string>
     <string name="playback_unknown_artist">Unknown artist</string>
     <string name="playback_paused">Paused · %1$s</string>
+    <string name="playback_reconnecting">Reconnecting to the server…</string>
     <string name="playback_previous">Previous</string>
     <string name="playback_pause">Pause</string>
     <string name="playback_play">Play</string>

@@ -11,8 +11,10 @@ import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaPlayer
+import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
@@ -51,8 +53,10 @@ import eu.junak.baton.core.sync.SyncClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -66,6 +70,10 @@ import kotlin.math.abs
  * Per `clients/README.md`: the interrupt lane overrides ambient, stream the active
  * track, and seek only on a track change or a big position jump. Gated by
  * [PlaybackController.enabled]; when that goes false the service stops itself.
+ * A dropped socket alone does NOT stop it: the service rides it out paused but
+ * still foreground ([holdThroughDisconnect]), because its user-initiated start
+ * is what grants background audio under Android 17 — a replacement service
+ * started from the background would play silence.
  *
  * Presents as a real media session: a MediaStyle notification (lock screen /
  * notification shade / hardware media buttons all included) whose transport
@@ -92,6 +100,11 @@ class PlaybackService : Service() {
     private var mediaSession: MediaSession? = null
     private var loadedTrackId: Int? = null
     private var lastPositionEpoch: Int = -1
+
+    /** Bounds the disconnect hold; while active the service is paused-but-foreground. */
+    private var graceJob: Job? = null
+    private var holdWakeLock: PowerManager.WakeLock? = null
+    private var holdWifiLock: WifiManager.WifiLock? = null
     private val presetAudioProcessor = PresetAudioProcessor()
     private val presetResolver by lazy { PresetResolver(modesApi::presets) }
 
@@ -104,6 +117,7 @@ class PlaybackService : Service() {
     private val artCache = mutableMapOf<Int, CoverArt?>()
     private var notifiedTrackId: Int? = null
     private var notifiedPlaying: Boolean = false
+    private var notifiedReconnecting: Boolean = false
 
     private class CoverArt(val bytes: ByteArray, val bitmap: Bitmap)
 
@@ -323,14 +337,15 @@ class PlaybackService : Service() {
      */
     private fun reconcile(state: PlayerState?, enabled: Boolean) {
         val player = this.player ?: return
-        if (!enabled || !isCanonicalOutput(state, playbackController.deviceId)) {
+        if (!enabled) {
             stopEverything()
             return
         }
-        if (state == null) {
-            player.playWhenReady = false
+        if (state == null || !isCanonicalOutput(state, playbackController.deviceId)) {
+            holdThroughDisconnect(player)
             return
         }
+        endHold()
 
         presetAudioProcessor.setBypassed(state.interrupt != null)
         val outputVolume = outputVolume(state)
@@ -340,7 +355,7 @@ class PlaybackService : Service() {
         val trackId = interrupt?.currentTrackId ?: state.ambient.currentTrackId
         val playing = interrupt != null || state.isPlaying
         val positionMs = interrupt?.positionMs ?: state.ambient.positionMs
-        maybeRefreshNotification(trackId, playing)
+        maybeRefreshNotification(trackId, playing, reconnecting = false)
         val url = trackId?.let(mediaUrls::stream)
 
         if (trackId == null || url == null) {
@@ -371,7 +386,68 @@ class PlaybackService : Service() {
         player.playWhenReady = playing
     }
 
+    /**
+     * Transport loss, or membership the disconnect pruned server-side (the
+     * controller is rejoining): pause in place and KEEP the foreground service.
+     * Stopping it here would discard this service's user-initiated start —
+     * under Android 17's background audio hardening (API 37) a replacement
+     * started from the background has no while-in-use capability and plays
+     * silence. The hold is bounded: if live membership doesn't return within
+     * [DISCONNECT_GRACE_MS] the role is released, which stops the service
+     * through the normal enabled=false path. Bounded wake + Wi-Fi locks keep
+     * OkHttp's reconnect machinery actually running with the screen off —
+     * ExoPlayer's own WAKE_MODE_NETWORK locks lapse once playback pauses.
+     */
+    private fun holdThroughDisconnect(player: ExoPlayer) {
+        player.playWhenReady = false
+        // The server clock keeps ticking while we're paused; an unchanged
+        // position_epoch would resume us from the stale pre-disconnect
+        // position, so force the next live snapshot down the catch-up-seek path.
+        lastPositionEpoch = -1
+        maybeRefreshNotification(notifiedTrackId, playing = false, reconnecting = true)
+        if (graceJob?.isActive == true) return
+        acquireHoldLocks()
+        graceJob = scope.launch {
+            delay(DISCONNECT_GRACE_MS)
+            playbackController.setEnabled(false)
+        }
+    }
+
+    private fun endHold() {
+        graceJob?.cancel()
+        graceJob = null
+        releaseHoldLocks()
+    }
+
+    // The partial wake lock (keeps OkHttp's reconnect timers running) and the
+    // foreground service do the real work. DEPRECATION: on Android 14+ a
+    // WIFI_MODE_FULL_HIGH_PERF lock downgrades to an ordinary full Wi-Fi lock —
+    // a best-effort request to keep Wi-Fi up, kept because its replacement
+    // (LOW_LATENCY) only applies while the app is visible, which is exactly
+    // when we don't need it.
+    @Suppress("DEPRECATION")
+    private fun acquireHoldLocks() {
+        if (holdWakeLock == null) {
+            holdWakeLock = getSystemService(PowerManager::class.java)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, HOLD_LOCK_TAG)
+                .apply { acquire(DISCONNECT_GRACE_MS + HOLD_LOCK_SLACK_MS) }
+        }
+        if (holdWifiLock == null) {
+            holdWifiLock = applicationContext.getSystemService(WifiManager::class.java)
+                .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, HOLD_LOCK_TAG)
+                .apply { acquire() }
+        }
+    }
+
+    private fun releaseHoldLocks() {
+        holdWakeLock?.takeIf { it.isHeld }?.release()
+        holdWakeLock = null
+        holdWifiLock?.takeIf { it.isHeld }?.release()
+        holdWifiLock = null
+    }
+
     private fun stopEverything() {
+        endHold()
         player?.let {
             it.playWhenReady = false
             it.stop()
@@ -455,12 +531,15 @@ class PlaybackService : Service() {
      * that seamlessly, no rebuffer), which is what feeds the lock-screen widget and
      * Android 13+'s system media controls.
      */
-    private fun maybeRefreshNotification(trackId: Int?, playing: Boolean) {
-        if (trackId == notifiedTrackId && playing == notifiedPlaying) return
+    private fun maybeRefreshNotification(trackId: Int?, playing: Boolean, reconnecting: Boolean) {
+        if (trackId == notifiedTrackId && playing == notifiedPlaying && reconnecting == notifiedReconnecting) return
         notifiedTrackId = trackId
         notifiedPlaying = playing
+        notifiedReconnecting = reconnecting
         postNotification()
-        if (trackId == null) return
+        // While holding through a disconnect there is no server to fetch from;
+        // a failed art fetch would be cached as "no art" and never retried.
+        if (trackId == null || reconnecting) return
         if (trackCache[trackId] != null && artCache.containsKey(trackId)) {
             pushSessionMetadata(trackId)
             return
@@ -538,6 +617,7 @@ class PlaybackService : Service() {
             ?: getString(R.string.playback_speaker_title)
         val unknownArtist = getString(R.string.playback_unknown_artist)
         val text = when {
+            notifiedReconnecting -> getString(R.string.playback_reconnecting)
             track == null -> getString(R.string.playback_phone_audio)
             playing -> track.artist.ifBlank { unknownArtist }
             else -> getString(R.string.playback_paused, track.artist.ifBlank { unknownArtist })
@@ -590,6 +670,7 @@ class PlaybackService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        endHold()
         releaseAllSfx()
         mediaSession?.release()
         mediaSession = null
@@ -608,6 +689,13 @@ class PlaybackService : Service() {
         const val CUSTOM_ACTION_STOP = "eu.junak.baton.feature.playback.STOP_SPEAKER"
         const val SAME_POSITION_SLACK_MS = 250L
         const val ART_CACHE_MAX = 6
+
+        /** How long a disconnected speaker stays paused-but-foreground before
+         *  releasing the role (Android allows a mediaPlayback service to ride
+         *  out transient failures for up to ~10 minutes). */
+        const val DISCONNECT_GRACE_MS = 5 * 60_000L
+        const val HOLD_LOCK_SLACK_MS = 10_000L
+        const val HOLD_LOCK_TAG = "baton:reconnect-hold"
         const val TAG = "PlaybackService"
     }
 }

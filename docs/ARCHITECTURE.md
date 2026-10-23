@@ -120,9 +120,16 @@ of the sibling server contract.
 
 `PlaybackController` projects the server's output membership into the foreground service.
 The phone switch requests a membership change; playback starts after server confirmation.
-Removal by any controller stops music and all SFX. Disconnect revokes audio permission,
-and reconnect waits for a fresh snapshot without replaying an output-selection mutation.
-An output-by-default designation can restore membership through server registration.
+Removal by any controller stops music and all SFX. Disconnect revokes audio permission but
+not the role (ADR-0011): the service holds paused-but-foreground under a bounded grace, with a
+partial wake lock (plus a best-effort Wi-Fi lock) keeping reconnect running, because its
+user-initiated start is what grants background audio on Android 17 — a replacement started
+from the background plays silence. The
+server prunes a dropped socket from the active outputs, so on the first snapshot of a new
+connection an enabled role re-requests membership once, computed from that fresh snapshot
+(never a replayed stale mutation), and a forced catch-up seek realigns with the server clock.
+Removal observed mid-connection, an unconfirmed rejoin, or grace expiry releases the role.
+An output-by-default designation can also restore membership through server registration.
 `SyncClient.liveState` supplies this current-connection snapshot separately from the last
 known state retained for display while offline. SFX preparation rechecks permission before
 starting audio, so a delayed prepare callback cannot revive a removed output.
