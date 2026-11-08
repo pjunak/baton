@@ -91,10 +91,28 @@ class PlaybackController @Inject constructor(
         if (next != current) syncClient.send(Action.SetActiveOutputs(next))
     }
 
+    /**
+     * Before starting playback with no output active: when this phone is the only
+     * connected device, make it the output instead of asking the operator to pick it.
+     * Returns whether the phone was requested as the output; the caller's play action,
+     * sent next on the same socket, then reaches the server after the output change.
+     */
+    fun claimSoleOutput(): Boolean {
+        if (!isSoleOutputCandidate(syncClient.liveState.value, deviceId)) return false
+        setEnabled(true, outputDeviceIds = listOf(deviceId))
+        return true
+    }
+
     private companion object {
         const val TAG = "PlaybackController"
     }
 }
+
+/** No output is active and this device is the only one connected. */
+internal fun isSoleOutputCandidate(state: PlayerState?, deviceId: String): Boolean =
+    state != null &&
+        state.activeOutputDeviceIds.isEmpty() &&
+        state.connectedDevices.map { it.deviceId }.distinct() == listOf(deviceId)
 
 internal fun isCanonicalOutput(state: PlayerState?, deviceId: String): Boolean =
     state?.activeOutputDeviceIds?.contains(deviceId) == true

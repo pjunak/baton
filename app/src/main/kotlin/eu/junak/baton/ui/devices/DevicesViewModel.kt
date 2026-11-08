@@ -70,7 +70,7 @@ class DevicesViewModel @Inject constructor(
         applyActiveOutputs(nextActiveOutputs(current, deviceId, on, allowMultiple))
     }
 
-    /** "No output" in a one-output mode: silence every speaker. */
+    /** Silence every output, in either selection style. */
     fun clearOutputs() = applyActiveOutputs(emptyList())
 
     fun setDeviceVolume(deviceId: String, volume: Float) {

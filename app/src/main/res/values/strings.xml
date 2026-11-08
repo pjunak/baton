@@ -38,7 +38,9 @@
     <string name="devices_empty">No devices connected</string>
     <string name="devices_single_output_help">This mode plays through one output. Selecting another replaces it.</string>
     <string name="devices_multiple_outputs_help">This mode lets several outputs play together.</string>
-    <string name="devices_no_output">No output</string>
+    <string name="devices_none_selected">No output selected. Choose where to play.</string>
+    <string name="devices_turn_off">Turn off</string>
+    <string name="devices_turn_off_description">Turn off every output</string>
     <string name="devices_output_toggle">Use %1$s as an output</string>
     <string name="devices_volume">Volume for %1$s</string>
     <string name="devices_active_output">Active output</string>

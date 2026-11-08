@@ -118,7 +118,6 @@ class MainViewModel @Inject constructor(
     data class PlayState(
         val isPlaying: Boolean = false,
         val connected: Boolean = false,
-        val hasActiveOutput: Boolean = false,
     )
 
     val playState: StateFlow<PlayState> =
@@ -126,7 +125,6 @@ class MainViewModel @Inject constructor(
             PlayState(
                 isPlaying = playPauseAction(state) == Action.Pause,
                 connected = status == ConnectionStatus.CONNECTED,
-                hasActiveOutput = state?.activeOutputDeviceIds?.isNotEmpty() == true,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlayState())
 
@@ -139,8 +137,19 @@ class MainViewModel @Inject constructor(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
-    fun playPause() {
-        syncClient.send(playPauseAction(syncClient.state.value))
+    /**
+     * Toggle ambient playback. Returns false when starting it needs the operator to
+     * choose an output first; when this phone is the only device, it becomes the output.
+     */
+    fun playPause(): Boolean {
+        val state = syncClient.state.value
+        val needsOutput = shouldSelectOutputBeforePlay(
+            isPlaying = state?.isPlaying == true,
+            hasActiveOutput = state?.activeOutputDeviceIds?.isNotEmpty() == true,
+        )
+        if (needsOutput && !playbackController.claimSoleOutput()) return false
+        syncClient.send(playPauseAction(state))
+        return true
     }
 
     fun setUiStarted(started: Boolean) {
@@ -217,15 +226,9 @@ fun MainScreen(
                     isPlaying = playState.isPlaying,
                     enabled = playState.connected,
                     onPlayPause = {
-                        if (shouldSelectOutputBeforePlay(
-                                isPlaying = playState.isPlaying,
-                                hasActiveOutput = playState.hasActiveOutput,
-                            )
-                        ) {
+                        if (!viewModel.playPause()) {
                             tabIndex = MainTab.CONSOLE.ordinal
                             openOutputPicker = true
-                        } else {
-                            viewModel.playPause()
                         }
                     },
                     settingsBadge = updateAvailable,

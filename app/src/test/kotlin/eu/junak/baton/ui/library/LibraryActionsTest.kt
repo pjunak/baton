@@ -25,6 +25,26 @@ class LibraryActionsTest {
     }
 
     @Test
+    fun `a playback start claims the sole output before sending`() {
+        val calls = mutableListOf<String>()
+        val result = sendLibraryAction(
+            Action.AmbientPlayTrack(1), true, true, false,
+            claimOutput = { calls += "claim"; true },
+        ) { calls += "send"; true }
+        assertEquals(LibraryActionResult.SENT, result)
+        assertEquals(listOf("claim", "send"), calls)
+    }
+
+    @Test
+    fun `an existing output is never replaced by the claim`() {
+        val result = sendLibraryAction(
+            Action.AmbientPlayTrack(1), true, true, true,
+            claimOutput = { fail("Claimed over an active output"); true },
+        ) { true }
+        assertEquals(LibraryActionResult.SENT, result)
+    }
+
+    @Test
     fun `enqueue works without an output and sends exactly once`() {
         val sent = mutableListOf<Action>()
         val action = Action.AmbientEnqueue(trackId = 4)

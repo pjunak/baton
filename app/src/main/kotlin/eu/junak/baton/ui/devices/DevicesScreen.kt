@@ -9,14 +9,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Smartphone
@@ -29,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -44,7 +46,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.paneTitle
@@ -65,12 +66,15 @@ import eu.junak.baton.ui.theme.BatonSpacing
  * Output-device picker, shown as a sheet pulled down from the top of the Console
  * (its trigger is the speaker icon up there). Lists every connected output — this
  * phone included — and trims per-device volume. The active mode decides the
- * selection style: one output (radio choices plus "No output") or several (switches).
+ * selection style: one output (radio choices) or several (switches). Having no
+ * output is a state, not a choice: the header says so, and while anything plays a
+ * header "Turn off" action silences every output.
  */
 @Composable
 fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
     val title = stringResource(R.string.devices_title)
+    val anyActive = ui.devices.any { it.isActiveOutput }
 
     Column(
         Modifier
@@ -78,18 +82,33 @@ fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
             .semantics { paneTitle = title }
             .padding(bottom = BatonSpacing.Large),
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(horizontal = BatonSpacing.Large, vertical = BatonSpacing.Small),
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .padding(start = BatonSpacing.Large, end = BatonSpacing.Small),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f),
+            )
+            if (anyActive) {
+                TurnOffOutputsButton(enabled = ui.connected, onClick = viewModel::clearOutputs)
+            }
+        }
+        val noOutput = ui.devices.isNotEmpty() && !anyActive
         Text(
             text = stringResource(
-                if (ui.multipleOutputs) R.string.devices_multiple_outputs_help
-                else R.string.devices_single_output_help,
+                when {
+                    noOutput -> R.string.devices_none_selected
+                    ui.multipleOutputs -> R.string.devices_multiple_outputs_help
+                    else -> R.string.devices_single_output_help
+                },
             ),
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (noOutput) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(
                 start = BatonSpacing.Large,
                 end = BatonSpacing.Large,
@@ -116,33 +135,25 @@ fun DevicePicker(viewModel: DevicesViewModel = hiltViewModel()) {
                 )
                 HorizontalDivider()
             }
-            if (!ui.multipleOutputs) {
-                NoOutputRow(
-                    selected = ui.devices.none { it.isActiveOutput },
-                    enabled = ui.connected,
-                    onSelect = viewModel::clearOutputs,
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun NoOutputRow(selected: Boolean, enabled: Boolean, onSelect: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
-            .padding(horizontal = BatonSpacing.Large, vertical = BatonSpacing.Small),
-        verticalAlignment = Alignment.CenterVertically,
+private fun TurnOffOutputsButton(enabled: Boolean, onClick: () -> Unit) {
+    val description = stringResource(R.string.devices_turn_off_description)
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.semantics { contentDescription = description },
     ) {
-        Text(
-            text = stringResource(R.string.devices_no_output),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
+        Icon(
+            Icons.AutoMirrored.Filled.VolumeOff,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
         )
-        RadioButton(selected = selected, onClick = null, enabled = enabled)
+        Spacer(Modifier.width(BatonSpacing.Small))
+        Text(stringResource(R.string.devices_turn_off))
     }
 }
 

@@ -83,7 +83,8 @@ the phone speaker, wired audio, Bluetooth headphones, or Bluetooth speakers.
 - **Setup:** HTTPS server URL, health probe, and operator login.
 - **Console:** cover art, now-playing metadata, seek, transport, shuffle/repeat, queue jumping,
   reordering, removal and clearing, plus the output picker. Starting playback with no active output
-  routes to that picker instead of sending an inaudible resume. Mutating controls disable offline.
+  makes this phone the output when it is the only connected device; otherwise it routes to that
+  picker instead of sending an inaudible resume. Mutating controls disable offline.
 - **Library:** full folder hierarchy, persistent breadcrumbs, folder/search Back history, saved
   scroll positions, refresh/retry, debounced search, play/enqueue, and cover thumbnails. A local
   `LibraryBrowser` owns browsing history and cancels superseded loads; request generations also
@@ -97,15 +98,18 @@ the phone speaker, wired audio, Bluetooth headphones, or Bluetooth speakers.
   awake, app version, and updater state. Tabs support taps and horizontal paging.
 - **Devices:** a Console modal listing connected devices, live output activation, and canonical
   per-device volume. The active mode decides the selection style from `multiple_outputs`, which
-  the server also enforces: one output (radio choices plus "No output") or several (switches).
+  the server also enforces: one output (radio choices) or several (switches). With no output the
+  header says so; while any output is active a header "Turn off" action silences every output.
   When exactly one output is active, its volume is also available beside the Console
   speaker button. The phone row controls the local speaker service as well as server membership.
 
 The main shell saves each tab's Compose state and shows a metadata-only mini-player outside
 Console. Its subscription does not start the Console seek ticker. Library taps still play
 immediately; long press/overflow opens an action sheet, and a completed row swipe requests enqueue.
-Gesture completion state is never persisted or replayed. Playback starts without an output open
-the output picker and require a fresh tap after selection; enqueue does not require an output.
+Gesture completion state is never persisted or replayed. Playback starts without an output either
+claim this phone as the sole connected device, sending the output change before the play action on
+the same socket, or open the output picker and require a fresh tap after selection; enqueue does
+not require an output.
 Socket acceptance is reported as a request sent, with playback and queue state still reconciled
 from the server.
 

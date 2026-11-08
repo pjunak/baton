@@ -1,5 +1,6 @@
 package eu.junak.baton.feature.playback
 
+import eu.junak.baton.core.model.DeviceInfo
 import eu.junak.baton.core.model.PlayerState
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -29,6 +30,19 @@ class PlaybackControllerTest {
     fun `unselected phone never has audio permission`() {
         assertFalse(isCanonicalOutput(PlayerState(), phone))
     }
+
+    @Test
+    fun `the phone claims the output only when it is the sole connected device and none is active`() {
+        val alone = PlayerState(connectedDevices = listOf(device(phone)))
+        assertTrue(isSoleOutputCandidate(alone, phone))
+        assertFalse(isSoleOutputCandidate(null, phone))
+        assertFalse(isSoleOutputCandidate(PlayerState(), phone))
+        assertFalse(isSoleOutputCandidate(alone.copy(connectedDevices = listOf(device(phone), device("tv"))), phone))
+        assertFalse(isSoleOutputCandidate(PlayerState(connectedDevices = listOf(device("tv"))), phone))
+        assertFalse(isSoleOutputCandidate(alone.copy(activeOutputDeviceIds = listOf(phone)), phone))
+    }
+
+    private fun device(id: String) = DeviceInfo(deviceId = id, clientId = id, name = id)
 
     @Test
     fun `transport loss keeps the speaker role`() {

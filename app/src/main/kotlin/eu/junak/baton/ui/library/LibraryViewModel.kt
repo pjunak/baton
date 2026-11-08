@@ -10,6 +10,7 @@ import eu.junak.baton.core.network.MediaUrls
 import eu.junak.baton.core.network.api.LibraryApi
 import eu.junak.baton.core.sync.ConnectionStatus
 import eu.junak.baton.core.sync.SyncClient
+import eu.junak.baton.feature.playback.PlaybackController
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.serialization.json.Json
@@ -22,6 +23,7 @@ class LibraryViewModel @Inject constructor(
     libraryApi: LibraryApi,
     private val syncClient: SyncClient,
     private val mediaUrls: MediaUrls,
+    private val playbackController: PlaybackController,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val browser = LibraryBrowser(
@@ -64,6 +66,7 @@ class LibraryViewModel @Inject constructor(
             startsPlayback,
             connected = syncClient.status.value == ConnectionStatus.CONNECTED,
             hasOutput = syncClient.liveState.value?.activeOutputDeviceIds?.isNotEmpty() == true,
+            claimOutput = playbackController::claimSoleOutput,
             send = syncClient::send,
         )
         when (result) {
@@ -81,16 +84,21 @@ class LibraryViewModel @Inject constructor(
 
 internal enum class LibraryActionResult { SENT, SELECT_OUTPUT, FAILED }
 
-/** Gate live actions at dispatch time as well as disabling their visible controls. */
+/**
+ * Gate live actions at dispatch time as well as disabling their visible controls.
+ * A playback start with no output first tries [claimOutput] (this phone, when it is
+ * the only device) before asking the operator to choose one.
+ */
 internal fun sendLibraryAction(
     action: Action,
     startsPlayback: Boolean,
     connected: Boolean,
     hasOutput: Boolean,
+    claimOutput: () -> Boolean = { false },
     send: (Action) -> Boolean,
 ): LibraryActionResult = when {
     !connected -> LibraryActionResult.FAILED
-    startsPlayback && !hasOutput -> LibraryActionResult.SELECT_OUTPUT
+    startsPlayback && !hasOutput && !claimOutput() -> LibraryActionResult.SELECT_OUTPUT
     send(action) -> LibraryActionResult.SENT
     else -> LibraryActionResult.FAILED
 }
