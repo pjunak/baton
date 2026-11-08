@@ -15,6 +15,7 @@ import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
@@ -100,6 +101,11 @@ class PlaybackService : Service() {
     private var mediaSession: MediaSession? = null
     private var loadedTrackId: Int? = null
     private var lastPositionEpoch: Int = -1
+    private val audioYield = AudioYield()
+
+    /** The last state [reconcile] saw and when it arrived, to count the server clock forward. */
+    private var lastState: PlayerState? = null
+    private var stateReceivedAt: Long = 0L
 
     /** Bounds the disconnect hold; while active the service is paused-but-foreground. */
     private var graceJob: Job? = null
@@ -130,10 +136,10 @@ class PlaybackService : Service() {
      */
     private inner class RemotePlayer(local: Player) : ForwardingPlayer(local) {
         override fun setPlayWhenReady(playWhenReady: Boolean) {
-            syncClient.send(if (playWhenReady) Action.Resume else Action.Pause)
+            if (playWhenReady) requestPlay() else syncClient.send(Action.Pause)
         }
 
-        override fun play() = setPlayWhenReady(true)
+        override fun play() = requestPlay()
 
         override fun pause() = setPlayWhenReady(false)
 
@@ -196,6 +202,19 @@ class PlaybackService : Service() {
                     loadedTrackId = null
                     Log.e(TAG, "Phone output playback failed", error)
                 }
+
+                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                    // Permanent focus loss and unplugged headphones; transient
+                    // losses (calls) only suppress playback and resume by themselves.
+                    if (!playWhenReady &&
+                        (
+                            reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS ||
+                                reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY
+                            )
+                    ) {
+                        yieldAudio()
+                    }
+                }
             },
         )
         player = exo
@@ -203,6 +222,10 @@ class PlaybackService : Service() {
 
         scope.launch {
             combine(syncClient.liveState, playbackController.enabled, ::Pair).collect { (state, enabled) ->
+                if (state !== lastState) {
+                    lastState = state
+                    stateReceivedAt = SystemClock.elapsedRealtime()
+                }
                 reconcile(state, enabled)
             }
         }
@@ -305,7 +328,11 @@ class PlaybackService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_PLAY_PAUSE -> {
-                syncClient.send(if (syncClient.state.value?.isPlaying == true) Action.Pause else Action.Resume)
+                if (syncClient.state.value?.isPlaying == true && !audioYield.yielded) {
+                    syncClient.send(Action.Pause)
+                } else {
+                    requestPlay()
+                }
                 return START_NOT_STICKY
             }
             ACTION_NEXT -> {
@@ -353,8 +380,16 @@ class PlaybackService : Service() {
 
         val interrupt = state.interrupt
         val trackId = interrupt?.currentTrackId ?: state.ambient.currentTrackId
-        val playing = interrupt != null || state.isPlaying
-        val positionMs = interrupt?.positionMs ?: state.ambient.positionMs
+        val serverPlaying = interrupt != null || state.isPlaying
+        val playing = audioYield.onState(serverPlaying)
+        val reportedMs = (interrupt?.positionMs ?: state.ambient.positionMs).toLong()
+        // The server stamps the position when it broadcasts; count the time
+        // since, so a late start (reclaiming the audio) lands where the room is.
+        val positionMs = if (serverPlaying && state === lastState) {
+            reportedMs + (SystemClock.elapsedRealtime() - stateReceivedAt)
+        } else {
+            reportedMs
+        }
         maybeRefreshNotification(trackId, playing, reconnecting = false)
         val url = trackId?.let(mediaUrls::stream)
 
@@ -370,7 +405,7 @@ class PlaybackService : Service() {
         if (trackId != loadedTrackId) {
             player.setMediaItem(mediaItemFor(trackId, url))
             player.prepare()
-            player.seekTo(positionMs.toLong())
+            player.seekTo(positionMs)
             loadedTrackId = trackId
             lastPositionEpoch = state.positionEpoch
         } else if (state.positionEpoch != lastPositionEpoch) {
@@ -380,10 +415,31 @@ class PlaybackService : Service() {
             // avoid a pointless rebuffer.
             lastPositionEpoch = state.positionEpoch
             if (abs(player.currentPosition - positionMs) > SAME_POSITION_SLACK_MS) {
-                player.seekTo(positionMs.toLong())
+                player.seekTo(positionMs)
             }
         }
         player.playWhenReady = playing
+    }
+
+    /**
+     * Another app took the audio for good, or headphones were unplugged; see
+     * [AudioYield]. ExoPlayer has already paused and released audio focus.
+     */
+    private fun yieldAudio() {
+        if (audioYield.onAudioLost(syncClient.liveState.value)) syncClient.send(Action.Pause)
+        releaseAllSfx()
+        maybeRefreshNotification(notifiedTrackId, playing = false, reconnecting = notifiedReconnecting)
+    }
+
+    /** A deliberate play from this phone: reclaim yielded audio, then resume the server. */
+    private fun requestPlay() {
+        if (audioYield.yielded) {
+            audioYield.onLocalPlay()
+            // The local player sat paused while the server clock ran on.
+            lastPositionEpoch = -1
+            reconcile(syncClient.liveState.value, playbackController.enabled.value)
+        }
+        syncClient.send(Action.Resume)
     }
 
     /**
@@ -453,6 +509,7 @@ class PlaybackService : Service() {
             it.stop()
         }
         loadedTrackId = null
+        audioYield.reset()
         presetAudioProcessor.setEffects(emptyList())
         presetResolver.clear()
         releaseAllSfx()
@@ -466,7 +523,7 @@ class PlaybackService : Service() {
      * Each player frees itself on completion/error, so overlapping SFX simply stack.
      */
     private fun fireSfx(event: ServerMessage.SfxFired) {
-        if (!playbackController.enabled.value) return
+        if (!playbackController.enabled.value || audioYield.yielded) return
         val state = syncClient.liveState.value ?: return
         if (!isCanonicalOutput(state, playbackController.deviceId)) return
         val url = mediaUrls.sfx(event.itemPath) ?: return

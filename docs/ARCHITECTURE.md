@@ -146,6 +146,13 @@ starting audio, so a delayed prepare callback cannot revive a removed output.
 - transient `MediaPlayer` instances for overlapping `sfx_fired` events;
 - Media3 audio focus, becoming-noisy handling, and network wake mode.
 
+When another app takes the audio for good, or headphones are unplugged, the phone stays quiet
+until a deliberate play: a local play (notification, lock screen, headset), a paused → playing
+server transition, or a new speaker role. Later broadcasts and track changes do not take the
+audio back. In a one-output mode the phone also pauses the server; with multiple outputs the room
+keeps playing, and a local play rejoins at the room's current position. Short losses such as a
+call only suppress playback, and Media3 resumes on its own.
+
 The reconciler follows the server contract: an interrupt overrides ambient playback; a track
 change loads and seeks; a changed `position_epoch` applies a deliberate seek; same-epoch state
 updates do not chase the materialized server clock. Protocol-v2 absolute device volume applies to
