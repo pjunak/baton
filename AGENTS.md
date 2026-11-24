@@ -90,6 +90,9 @@ to Android's installer; the phone owner approves installation. Preserve signing
 identity and the monotonic build-number contract described in the [README](README.md).
 Baton is not deployed by `pjunak/infra`. Protocol changes must stay compatible
 with the released Music server.
+`app/src/main/assets/adi-registration.properties` proves the signing key for
+Google's Android developer verification and ships in every release; do not
+remove or edit it without the owner.
 
 ## Testing and completion
 
